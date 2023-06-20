@@ -51,16 +51,8 @@
                 const ver = (pop ? this.rev.pop() : this.rev[this.rev.length - 1]);
                 element.replaceChildren(ver.dom.cloneNode(true));
                 const rgNew = new Range();
-                if (ver.startIndex < 0) {
-                    rgNew.setStart(element.childNodes[ver.startOffset], 0);
-                } else {
-                    rgNew.setStart(element.childNodes[ver.startIndex], ver.startOffset);
-                }
-                if (ver.endIndex < 0) {
-                    rgNew.setEnd(element.childNodes[ver.endOffset], 0);
-                } else {
-                    rgNew.setEnd(element.childNodes[ver.endIndex], ver.endOffset);
-                }
+                (ver.startIndex < 0) ? rgNew.setStart(element.childNodes[ver.startOffset], 0) : rgNew.setStart(element.childNodes[ver.startIndex], ver.startOffset);
+                (ver.endIndex < 0) ? rgNew.setEnd(element.childNodes[ver.endOffset], 0) : rgNew.setEnd(element.childNodes[ver.endIndex], ver.endOffset);
                 const sl = window.getSelection();
                 sl.removeAllRanges();
                 sl.addRange(rgNew);
