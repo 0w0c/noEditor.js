@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+<!DOCTYPE HTML>
 <html>
 
 <head>
     <meta charset="UTF-8">
-    <title>爪巴编辑器</title>
+    <title>Test</title>
     <style>
         body {
             text-align: center;
@@ -33,26 +33,83 @@
 </head>
 
 <body>
-    <div><strong>爪巴编辑器</strong></div>
-    <div contenteditable="true" data-editing-commands="false">开始编辑...</div>
+    <center><b>Test</b></center>
+    <div id="test" contenteditable="true">开始编辑...</div>
     <script>
-        document.querySelector('div[contenteditable=\'true\']').addEventListener('beforeinput', function (event) {
-            if (
-                event.inputType === 'bold' ||
-                event.inputType === 'italic' ||
-                event.inputType === 'underline' ||
-                event.inputType === 'strikethrough' ||
-                event.inputType === 'superscript' ||
-                event.inputType === 'subscript'
-            ) {
-                event.preventDefault();
+        //.replace(/<[^>]*>?/gm, '').trim()
+        class RevManager {
+            static tmp = "";
+            static rev = [];
+            static hot = false;
+            static put() {
+                const rgNow = window.getSelection().getRangeAt(0);
+                rgNow.insertNode(new Text(this.tmp));
+                rgNow.collapse();
             }
-        }, false);
+            static undo(element, pop = true) {
+                if (!this.rev.length) { return; }
+                const ver = (pop ? this.rev.pop() : this.rev[this.rev.length - 1]);
+                element.replaceChildren(ver.dom.cloneNode(true));
+                const rgNew = new Range();
+                if (ver.startIndex < 0) {
+                    rgNew.setStart(element.childNodes[ver.startOffset], 0);
+                } else {
+                    rgNew.setStart(element.childNodes[ver.startIndex], ver.startOffset);
+                }
+                if (ver.endIndex < 0) {
+                    rgNew.setEnd(element.childNodes[ver.endOffset], 0);
+                } else {
+                    rgNew.setEnd(element.childNodes[ver.endIndex], ver.endOffset);
+                }
+                const sl = window.getSelection();
+                sl.removeAllRanges();
+                sl.addRange(rgNew);
+            }
+            static redo(element) {
+
+            }
+            static watch(selector) {
+                const that = this;
+                document.querySelector(selector).addEventListener("beforeinput", function (e) {
+                    if (e.inputType !== "historyUndo") {
+                        // move to get function
+                        const rgNow = window.getSelection().getRangeAt(0);
+                        const rgAll = new Range();
+                        const child = Array.from(this.childNodes);
+                        rgAll.selectNodeContents(this);
+                        let cnt = rgAll.cloneContents();
+                        that.rev.push({
+                            startIndex: child.indexOf(rgNow.startContainer),
+                            startOffset: rgNow.startOffset,
+                            endIndex: child.indexOf(rgNow.endContainer),
+                            endOffset: rgNow.endOffset,
+                            dom: cnt
+                        });
+                    }
+                    if (e.inputType === "historyUndo") {
+                        e.preventDefault();
+                        that.undo(this);
+                    }
+                    if (e.inputType === "insertFromPaste") {
+                        that.tmp = e.dataTransfer.getData("text");
+                        if (!that.hot) { return; }
+                        e.preventDefault();
+                        that.put();
+                    }
+                });
+                document.querySelector(selector).addEventListener("input", function (e) {
+                    if (e.inputType === "insertFromPaste") {
+                        that.undo(this, false);
+                        that.hot = true;
+                        that.put();
+                    }
+                });
+            };
+        };
+
+        RevManager.watch("div[contenteditable='true']");
+
     </script>
-    <div><a href="javascript:;"
-            onclick="document.getElementById('html').innerHTML=JSON.stringify(document.querySelector('div[contenteditable=\'true\']').innerHTML)" />HTML</a>
-    </div>
-    <div id="html"></div>
 </body>
 
 </html>
