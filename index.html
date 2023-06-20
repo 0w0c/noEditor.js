@@ -43,6 +43,7 @@
             static hot = false;
             static put() {
                 const rgNow = window.getSelection().getRangeAt(0);
+                rgNow.deleteContents();
                 rgNow.insertNode(new Text(this.tmp));
                 rgNow.collapse();
             }
