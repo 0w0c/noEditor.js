@@ -34,19 +34,60 @@
 
 <body>
     <center><b>Test</b></center>
-    <div id="test" contenteditable="true">开始编辑...</div>
+    <div id="test" contenteditable="true"></div>
     <script>
-        //.replace(/<[^>]*>?/gm, '').trim()
-        class RevManager {
-            static tmp = "";
+        // [redo function] [reduce undo step] [filter event] [mouseclick/touchstart/upload] [get file] .replace(/<[^>]*>?/gm, '').trim()
+        class DropEditor {
             static rev = [];
             static hot = false;
+            static tmp = new Text();
+            static get(event) {
+                if (event?.dataTransfer?.types.includes("Files")) {
+                }
+                else if (event?.dataTransfer?.types.includes("text/html")) {
+                    this.tmp = new Range().createContextualFragment(
+                        event.dataTransfer.getData("text/html")
+                            .replaceAll("\v", "\n\t")
+                            .replaceAll(/\<img\s+.*?src=\"([^"]+)\".*?\>/ig, "\v$1\v")
+                            .replaceAll(/(\<(?:option|td|th)(?:\>|\s+.*?\>))/ig, " $1")
+                            .replaceAll(/(\<(?:address|article|aside|blockquote|br|caption|dd|details|dialog|div|dl|dt|fieldset|figcaption|figure|footer|form|h\d|header|hr|iframe|legend|li|main|nav|ol|p|pre|ruby|section|summary|table|tbody|tfoot|thead|tr|ul)(?:\>|\s+.*?\>))/ig, "\n$1")
+                    );
+                    this.tmp.replaceChildren(
+                        new Range().createContextualFragment(
+                            this.tmp.textContent
+                                .replaceAll(/[\u00A0-\u9999<>\&\'\"\\]/ig, _ => "&#" + _.charCodeAt(0) + ";")
+                                .replaceAll(/\v(.*?)\v/ig, "<img src=\"$1\" alt=\"\" />")
+                                .replaceAll(/\n{3,}/g, "\n\n")
+                                .trim()
+                        )
+                    );
+                }
+                else if (event?.dataTransfer?.types.includes("text/plain")) {
+                    this.tmp = new Text(event.dataTransfer.getData("text/plain"));
+                }
+                else {
+                    this.tmp = new Text();
+                }
+            }
             static put() {
                 const rgNow = window.getSelection().getRangeAt(0);
                 rgNow.deleteContents();
-                rgNow.insertNode(new Text(this.tmp));
+                rgNow.insertNode(this.tmp);
                 rgNow.collapse();
-            }
+            };
+            static save(element) {
+                const child = Array.from(element.childNodes);
+                const rgNow = window.getSelection().getRangeAt(0);
+                const rgAll = new Range();
+                rgAll.selectNodeContents(element);
+                this.rev.push({
+                    startIndex: child.indexOf(rgNow.startContainer),
+                    startOffset: rgNow.startOffset,
+                    endIndex: child.indexOf(rgNow.endContainer),
+                    endOffset: rgNow.endOffset,
+                    dom: child.length ? rgAll.cloneContents() : rgAll.createContextualFragment("\r")
+                });
+            };
             static undo(element, pop = true) {
                 if (!this.rev.length) { return; }
                 const ver = (pop ? this.rev.pop() : this.rev[this.rev.length - 1]);
@@ -57,51 +98,36 @@
                 const sl = window.getSelection();
                 sl.removeAllRanges();
                 sl.addRange(rgNew);
-            }
+            };
             static redo(element) {
-
-            }
+            };
             static watch(selector) {
                 const that = this;
                 document.querySelector(selector).addEventListener("beforeinput", function (e) {
                     if (e.inputType !== "historyUndo") {
-                        // move to get function
-                        const rgNow = window.getSelection().getRangeAt(0);
-                        const rgAll = new Range();
-                        const child = Array.from(this.childNodes);
-                        rgAll.selectNodeContents(this);
-                        let cnt = rgAll.cloneContents();
-                        that.rev.push({
-                            startIndex: child.indexOf(rgNow.startContainer),
-                            startOffset: rgNow.startOffset,
-                            endIndex: child.indexOf(rgNow.endContainer),
-                            endOffset: rgNow.endOffset,
-                            dom: cnt
-                        });
+                        that.save(this);
                     }
                     if (e.inputType === "historyUndo") {
                         e.preventDefault();
                         that.undo(this);
                     }
-                    if (e.inputType === "insertFromPaste") {
-                        that.tmp = e.dataTransfer.getData("text");
+                    if (e.inputType === "insertFromPaste" || e.inputType === "insertFromDrop") {
+                        that.get(e);
                         if (!that.hot) { return; }
                         e.preventDefault();
                         that.put();
                     }
                 });
                 document.querySelector(selector).addEventListener("input", function (e) {
-                    if (e.inputType === "insertFromPaste") {
+                    if (e.inputType === "insertFromPaste" || e.inputType === "insertFromDrop") {
                         that.undo(this, false);
                         that.hot = true;
                         that.put();
-                    }
+                    };
                 });
             };
         };
-
-        RevManager.watch("div[contenteditable='true']");
-
+        DropEditor.watch("div[contenteditable='true']");
     </script>
 </body>
 
