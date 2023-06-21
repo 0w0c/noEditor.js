@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no" />
     <title>Test</title>
     <link rel="icon" href="data:," />
     <style>
@@ -78,7 +78,7 @@
                 const rgNow = window.getSelection().getRangeAt(0);
                 rgNow.deleteContents();
                 rgNow.insertNode(this.tmp);
-                rgNow.collapse();
+                rgNow.collapse(); //? IOS
             };
             static save(area) {
                 const child = Array.from(area.childNodes);
@@ -107,11 +107,12 @@
             static redo(area) {
             };
             static file(area) {
+                this.loose();
                 alert("File Upload !!");
             }
             static press(area) {
                 this.move = false;
-                this.wait = window.setTimeout(this.file.bind(null, area), 3000);
+                this.wait = window.setTimeout(this.file.bind(this, area), 3000);
             }
             static loose() {
                 window.clearTimeout(this.wait);
