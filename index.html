@@ -76,11 +76,13 @@
             };
             static put() {
                 const child = this.tmp.lastChild || this.tmp;
-                const rgNow = window.getSelection().getRangeAt(0);
+                const slNow = window.getSelection();
+                const rgNow = slNow.getRangeAt(0);
                 rgNow.deleteContents();
                 rgNow.insertNode(this.tmp);
                 rgNow.setStartAfter(child);
-                rgNow.collapse();
+                slNow.removeAllRanges();
+                slNow.addRange(rgNow);
             };
             static save(area) {
                 const child = Array.from(area.childNodes);
