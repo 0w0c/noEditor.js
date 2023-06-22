@@ -37,7 +37,7 @@
 </head>
 
 <body>
-    <div id="test" contenteditable="true"></div>
+    <div id="test" contenteditable="true" spellcheck="false" translate="no"></div>
     <script>
         // [redo function] [reduce undo step] [filter event] [mouseclick/touchstart/upload] [get file] .replace(/<[^>]*>?/gm, '').trim()
         class DropEditor {
@@ -106,17 +106,6 @@
             };
             static redo(area) {
             };
-            static file(area) {
-                this.loose();
-                alert("File Upload !!");
-            }
-            static press(area) {
-                this.move = false;
-                this.wait = window.setTimeout(this.file.bind(this, area), 3000);
-            }
-            static loose() {
-                window.clearTimeout(this.wait);
-            }
             static watch(selector) {
                 const area = document.querySelector(selector);
                 const that = this;
@@ -147,12 +136,6 @@
                         that.put();
                     };
                 });
-                area.addEventListener("mousedown", function () { that.press(area); });
-                area.addEventListener("touchstart", function () { that.press(area); });
-                area.addEventListener("mouseup", function () { that.loose(); });
-                area.addEventListener("touchend", function () { that.loose(); });
-                area.addEventListener("touchcancel", function () { that.loose(); });
-                document.addEventListener("selectionchange", function (e) { if (that.move) { that.loose(); } else { that.move = true; } });
             };
         };
         DropEditor.watch("div[contenteditable='true']");
