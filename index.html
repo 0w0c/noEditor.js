@@ -73,12 +73,14 @@
                 else {
                     this.tmp = new Text();
                 }
-            }
+            };
             static put() {
+                const child = this.tmp.lastChild || this.tmp;
                 const rgNow = window.getSelection().getRangeAt(0);
                 rgNow.deleteContents();
                 rgNow.insertNode(this.tmp);
-                rgNow.collapse(); //? IOS
+                rgNow.setStartAfter(child);
+                rgNow.collapse();
             };
             static save(area) {
                 const child = Array.from(area.childNodes);
