@@ -37,15 +37,14 @@
 </head>
 
 <body>
-    <div id="test" contenteditable="true" spellcheck="false" translate="no"></div>
+    <div id="test" contenteditable="true"></div>
     <script>
-        // [redo function] [reduce undo step] [filter event] [mouseclick/touchstart/upload] [get file] .replace(/<[^>]*>?/gm, '').trim()
+        // [redo function] [reduce save step] [event filter] [get drop file from] [file upload event] .replace(/<[^>]*>?/gm, '').trim()
         class DropEditor {
             static rev = [];
-            static hot = false;
-            static tmp = new Text();
-            static wait = 0;
-            static move = false;
+            static ver = 0;
+            static hot = 0;
+            static tmp;
             static get(event) {
                 if (event?.dataTransfer?.types.includes("Files")) {
                 }
@@ -89,60 +88,87 @@
                 const rgNow = window.getSelection().getRangeAt(0);
                 const rgAll = new Range();
                 rgAll.selectNodeContents(area);
-                this.rev.push({
+                this.rev.splice(this.ver, Infinity, {
                     startIndex: child.indexOf(rgNow.startContainer),
                     startOffset: rgNow.startOffset,
                     endIndex: child.indexOf(rgNow.endContainer),
                     endOffset: rgNow.endOffset,
-                    dom: child.length ? rgAll.cloneContents() : rgAll.createContextualFragment("\r")
+                    dom: child.length ? rgAll.cloneContents() : rgAll.createContextualFragment("\n")
                 });
+                this.ver = this.rev.length;
             };
-            static undo(area, pop = true) {
-                if (!this.rev.length) { return; }
-                const ver = (pop ? this.rev.pop() : this.rev[this.rev.length - 1]);
-                area.replaceChildren(ver.dom.cloneNode(true));
+            static bump(area) {
+                const use = this.rev[this.ver - 1];
+                if (!use) { return; }
+                area.replaceChildren(use.dom.cloneNode(true));
                 const rgNew = new Range();
-                (ver.startIndex < 0) ? rgNew.setStart(area.childNodes[ver.startOffset], 0) : rgNew.setStart(area.childNodes[ver.startIndex], ver.startOffset);
-                (ver.endIndex < 0) ? rgNew.setEnd(area.childNodes[ver.endOffset], 0) : rgNew.setEnd(area.childNodes[ver.endIndex], ver.endOffset);
+                (use.startIndex < 0) ? rgNew.setStart(area.childNodes[use.startOffset], 0) : rgNew.setStart(area.childNodes[use.startIndex], use.startOffset);
+                (use.endIndex < 0) ? rgNew.setEnd(area.childNodes[use.endOffset], 0) : rgNew.setEnd(area.childNodes[use.endIndex], use.endOffset);
                 const sl = window.getSelection();
                 sl.removeAllRanges();
                 sl.addRange(rgNew);
             };
-            static redo(area) {
-            };
             static watch(selector) {
                 const area = document.querySelector(selector);
                 const that = this;
+                area.setAttribute("translate", "no");
+                area.setAttribute("spellcheck", "false");
                 area.addEventListener("beforeinput", function (e) {
                     console.log(e);
                     if (e.inputType.startsWith("format")) {
                         e.preventDefault();
                         return;
                     }
-                    if (e.inputType !== "historyUndo") {
+                    if (!e.inputType.startsWith("history")) {
                         that.save(area);
                     }
                     if (e.inputType === "historyUndo") {
                         e.preventDefault();
-                        that.undo(area);
+                        if (that.ver === that.rev.length) { that.save(area); }
+                        if (that.ver < 2) { return; }
+                        that.ver--;
+                        that.bump(area);
+                        /*
+                        if (that.ver < 2) { e.preventDefault(); return; }
+                        if (that.ver === that.rev.length) { that.save(area); }
+                        that.ver--;
+                        if (that.hot < 3) { return; }
+                        e.preventDefault();
+                        that.bump(area);
+                        */
+                    }
+                    if (e.inputType === "historyRedo") {
+                        e.preventDefault();
+                        if (that.ver >= that.rev.length) { return; }
+                        that.ver++;
+                        that.bump(area);
                     }
                     if (e.inputType === "insertFromPaste" || e.inputType === "insertFromDrop") {
                         that.get(e);
-                        if (!that.hot) { return; }
+                        if (that.hot < 1) { return; }
                         e.preventDefault();
                         that.put();
                     }
                 });
                 area.addEventListener("input", function (e) {
+                    console.log("input");
+                    if (e.inputType === "historyUndo") {
+                        that.bump(area);
+                        that.hot++;
+                    }
                     if (e.inputType === "insertFromPaste" || e.inputType === "insertFromDrop") {
-                        that.undo(area, false);
-                        that.hot = true;
+                        that.bump(area);
+                        that.hot = 1;
                         that.put();
-                    };
+                    }
+                });
+                area.addEventListener('drop', function (e) {
+                    //e.preventDefault();
                 });
             };
         };
         DropEditor.watch("div[contenteditable='true']");
+
     </script>
 </body>
 
