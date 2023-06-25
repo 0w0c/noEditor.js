@@ -37,15 +37,19 @@
 </head>
 
 <body>
-    <div id="test" contenteditable="true"></div>
+    <div id="test" contenteditable="true"></div><br />
+    <a href="javascript:DropEditor.undo();">Undo</a>
+    <a href="javascript:DropEditor.redo();">Redo</a>
     <script>
-        // [redo function] [reduce save step] [event filter] [get drop file from] [file upload event] .replace(/<[^>]*>?/gm, '').trim()
+        // [redo hotkey] [reduce save step] [event filter] [get drop file from] [file upload event] .replace(/<[^>]*>?/gm, '').trim()
         class DropEditor {
-            static rev = [];
             static ver = 0;
-            static hot = 0;
+            static rev = [];
+            static end = false;
+            static hot = false;
             static tmp;
-            static get(event) {
+            static dom;
+            static copy(event) {
                 if (event?.dataTransfer?.types.includes("Files")) {
                 }
                 else if (event?.dataTransfer?.types.includes("text/html")) {
@@ -73,7 +77,7 @@
                     this.tmp = new Text();
                 }
             };
-            static put() {
+            static swap() {
                 const child = this.tmp.lastChild || this.tmp;
                 const slNow = window.getSelection();
                 const rgNow = slNow.getRangeAt(0);
@@ -83,11 +87,11 @@
                 slNow.removeAllRanges();
                 slNow.addRange(rgNow);
             };
-            static save(area) {
-                const child = Array.from(area.childNodes);
+            static save() {
+                const child = Array.from(this.dom.childNodes);
                 const rgNow = window.getSelection().getRangeAt(0);
                 const rgAll = new Range();
-                rgAll.selectNodeContents(area);
+                rgAll.selectNodeContents(this.dom);
                 this.rev.splice(this.ver, Infinity, {
                     startIndex: child.indexOf(rgNow.startContainer),
                     startOffset: rgNow.startOffset,
@@ -96,79 +100,73 @@
                     dom: child.length ? rgAll.cloneContents() : rgAll.createContextualFragment("\n")
                 });
                 this.ver = this.rev.length;
+                this.end = true;
             };
-            static bump(area) {
+            static bump() {
                 const use = this.rev[this.ver - 1];
                 if (!use) { return; }
-                area.replaceChildren(use.dom.cloneNode(true));
+                this.dom.replaceChildren(use.dom.cloneNode(true));
                 const rgNew = new Range();
-                (use.startIndex < 0) ? rgNew.setStart(area.childNodes[use.startOffset], 0) : rgNew.setStart(area.childNodes[use.startIndex], use.startOffset);
-                (use.endIndex < 0) ? rgNew.setEnd(area.childNodes[use.endOffset], 0) : rgNew.setEnd(area.childNodes[use.endIndex], use.endOffset);
+                (use.startIndex < 0) ? rgNew.setStart(this.dom.childNodes[use.startOffset], 0) : rgNew.setStart(this.dom.childNodes[use.startIndex], use.startOffset);
+                (use.endIndex < 0) ? rgNew.setEnd(this.dom.childNodes[use.endOffset], 0) : rgNew.setEnd(this.dom.childNodes[use.endIndex], use.endOffset);
                 const sl = window.getSelection();
                 sl.removeAllRanges();
                 sl.addRange(rgNew);
             };
+            static undo(event) {
+                if (event) { event.preventDefault(); }
+                if (this.end) { this.save(this.dom); }
+                if (this.ver < 2) { return; }
+                this.ver--;
+                this.end = false;
+                this.bump(this.dom);
+            }
+            static redo(event) {
+                if (event) { event.preventDefault(); }
+                if (this.ver === this.rev.length) { return; }
+                this.ver++;
+                this.bump(this.dom);
+            }
             static watch(selector) {
-                const area = document.querySelector(selector);
-                const that = this;
-                area.setAttribute("translate", "no");
-                area.setAttribute("spellcheck", "false");
-                area.addEventListener("beforeinput", function (e) {
+                const own = this;
+                own.dom = document.querySelector(selector);
+                own.dom.setAttribute("translate", "no");
+                own.dom.setAttribute("spellcheck", "false");
+                own.dom.addEventListener("beforeinput", function (e) {
                     console.log(e);
                     if (e.inputType.startsWith("format")) {
                         e.preventDefault();
                         return;
                     }
                     if (!e.inputType.startsWith("history")) {
-                        that.save(area);
+                        own.save(own.dom);
                     }
-                    if (e.inputType === "historyUndo") {
-                        e.preventDefault();
-                        if (that.ver === that.rev.length) { that.save(area); }
-                        if (that.ver < 2) { return; }
-                        that.ver--;
-                        that.bump(area);
-                        /*
-                        if (that.ver < 2) { e.preventDefault(); return; }
-                        if (that.ver === that.rev.length) { that.save(area); }
-                        that.ver--;
-                        if (that.hot < 3) { return; }
-                        e.preventDefault();
-                        that.bump(area);
-                        */
+                    else if (e.inputType === "historyUndo") {
+                        own.undo(e);
                     }
-                    if (e.inputType === "historyRedo") {
-                        e.preventDefault();
-                        if (that.ver >= that.rev.length) { return; }
-                        that.ver++;
-                        that.bump(area);
+                    else if (e.inputType === "historyRedo") {
+                        own.redo(e);
                     }
                     if (e.inputType === "insertFromPaste" || e.inputType === "insertFromDrop") {
-                        that.get(e);
-                        if (that.hot < 1) { return; }
+                        own.copy(e);
+                        if (!own.hot) { return; }
                         e.preventDefault();
-                        that.put();
+                        own.swap();
                     }
                 });
-                area.addEventListener("input", function (e) {
-                    console.log("input");
-                    if (e.inputType === "historyUndo") {
-                        that.bump(area);
-                        that.hot++;
-                    }
+                own.dom.addEventListener("input", function (e) {
                     if (e.inputType === "insertFromPaste" || e.inputType === "insertFromDrop") {
-                        that.bump(area);
-                        that.hot = 1;
-                        that.put();
+                        own.hot = true;
+                        own.bump(own.dom);
+                        own.swap();
                     }
                 });
-                area.addEventListener('drop', function (e) {
+                own.dom.addEventListener('drop', function (e) {
                     //e.preventDefault();
                 });
             };
         };
         DropEditor.watch("div[contenteditable='true']");
-
     </script>
 </body>
 
