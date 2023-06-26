@@ -37,47 +37,50 @@
 </head>
 
 <body>
-    <div id="test" contenteditable="true"></div><br />
+    <div contenteditable="true"></div><br />
     <a href="javascript:DropEditor.undo();">Undo</a>
     <a href="javascript:DropEditor.redo();">Redo</a>
+    <a href="javascript:DropEditor.clean();">Clean</a>
     <script>
-        // [redo hotkey] [reduce save step] [event filter] [get drop file from] [file upload event] .replace(/<[^>]*>?/gm, '').trim()
+        // [event filter] [get drop file from] [file upload event] .replace(/<[^>]*>?/gm, '').trim()
         class DropEditor {
             static ver = 0;
             static rev = [];
-            static end = false;
+            static mod = true;
             static hot = false;
             static tmp;
             static dom;
-            static copy(event) {
-                if (event?.dataTransfer?.types.includes("Files")) {
+            static act;
+            static wash(t) {
+                return t
+                    .replaceAll(/[\u00A0-\u9999<>\&\'\"\\]/gi, _ => "&#" + _.charCodeAt(0) + ";")
+                    .replaceAll(/\r\n|\r/g, _ => ({ "\r\n": "\n", "\r": "\n" }[_]))
+                    .replaceAll(/\v(.*?)\v/gi, "<img src=\"$1\" alt=\"\" />")
+                    .replaceAll(/\n{3,}/g, "\n\n")
+                    .trim()
+            }
+            static take(e) {
+                if (e?.dataTransfer?.types.includes("Files")) {
                 }
-                else if (event?.dataTransfer?.types.includes("text/html")) {
+                else if (e?.dataTransfer?.types.includes("text/html")) {
                     this.tmp = new Range().createContextualFragment(
-                        event.dataTransfer.getData("text/html")
+                        e.dataTransfer.getData("text/html")
                             .replaceAll("\v", "\n\t")
-                            .replaceAll(/\<img\s+.*?src=\"([^"]+)\".*?\>/ig, "\v$1\v")
-                            .replaceAll(/(\<(?:option|td|th)(?:\>|\s+.*?\>))/ig, " $1")
-                            .replaceAll(/(\<(?:address|article|aside|blockquote|br|caption|dd|details|dialog|div|dl|dt|fieldset|figcaption|figure|footer|form|h\d|header|hr|iframe|legend|li|main|nav|ol|p|pre|ruby|section|summary|table|tbody|tfoot|thead|tr|ul)(?:\>|\s+.*?\>))/ig, "\n$1")
+                            .replaceAll(/\<img\s+.*?src=\"([^"]+)\".*?\>/gi, "\v$1\v")
+                            .replaceAll(/(\<(?:option|td|th)(?:\>|\s+.*?\>))/gi, " $1")
+                            .replaceAll(/(\<(?:address|article|aside|blockquote|br|caption|dd|details|dialog|div|dl|dt|fieldset|figcaption|figure|footer|form|h\d|header|hr|iframe|legend|li|main|nav|ol|p|pre|ruby|section|summary|table|tbody|tfoot|thead|tr|ul)(?:\>|\s+.*?\>))/gi, "\n$1")
                     );
-                    this.tmp.replaceChildren(
-                        new Range().createContextualFragment(
-                            this.tmp.textContent
-                                .replaceAll(/[\u00A0-\u9999<>\&\'\"\\]/ig, _ => "&#" + _.charCodeAt(0) + ";")
-                                .replaceAll(/\v(.*?)\v/ig, "<img src=\"$1\" alt=\"\" />")
-                                .replaceAll(/\n{3,}/g, "\n\n")
-                                .trim()
-                        )
-                    );
+                    this.tmp.replaceChildren(new Range().createContextualFragment(this.wash(this.tmp.textContent)));
                 }
-                else if (event?.dataTransfer?.types.includes("text/plain")) {
-                    this.tmp = new Text(event.dataTransfer.getData("text/plain"));
+                else if (e?.dataTransfer?.types.includes("text/plain")) {
+                    this.tmp = new Text(this.wash(e.dataTransfer.getData("text/plain")));
                 }
                 else {
                     this.tmp = new Text();
                 }
             };
-            static swap() {
+            static push(e) {
+                this.dom.focus();
                 const child = this.tmp.lastChild || this.tmp;
                 const slNow = window.getSelection();
                 const rgNow = slNow.getRangeAt(0);
@@ -87,12 +90,14 @@
                 slNow.removeAllRanges();
                 slNow.addRange(rgNow);
             };
-            static save() {
+            static save(e) {
+                this.dom.focus();
+                if ((this.act === "insertCompositionText" && e.inputType === "insertCompositionText")) { return; }
                 const child = Array.from(this.dom.childNodes);
                 const rgNow = window.getSelection().getRangeAt(0);
                 const rgAll = new Range();
                 rgAll.selectNodeContents(this.dom);
-                this.rev.splice(this.ver, Infinity, {
+                this.rev.push({
                     startIndex: child.indexOf(rgNow.startContainer),
                     startOffset: rgNow.startOffset,
                     endIndex: child.indexOf(rgNow.endContainer),
@@ -100,9 +105,10 @@
                     dom: child.length ? rgAll.cloneContents() : rgAll.createContextualFragment("\n")
                 });
                 this.ver = this.rev.length;
-                this.end = true;
+                this.mod = true;
             };
-            static bump() {
+            static dump(e) {
+                this.dom.focus();
                 const use = this.rev[this.ver - 1];
                 if (!use) { return; }
                 this.dom.replaceChildren(use.dom.cloneNode(true));
@@ -113,33 +119,35 @@
                 sl.removeAllRanges();
                 sl.addRange(rgNew);
             };
-            static undo(event) {
-                if (event) { event.preventDefault(); }
-                if (this.end) { this.save(this.dom); }
+            static undo(e) {
+                this.dom.focus();
+                if (e) { e.preventDefault(); }
+                if (this.mod) { this.save(e); }
                 if (this.ver < 2) { return; }
+                this.mod = false;
                 this.ver--;
-                this.end = false;
-                this.bump(this.dom);
-            }
-            static redo(event) {
-                if (event) { event.preventDefault(); }
+                this.dump(e);
+            };
+            static redo(e) {
+                this.dom.focus();
+                if (e) { e.preventDefault(); }
                 if (this.ver === this.rev.length) { return; }
                 this.ver++;
-                this.bump(this.dom);
-            }
-            static watch(selector) {
+                this.dump(e);
+            };
+            static watch(s) {
                 const own = this;
-                own.dom = document.querySelector(selector);
+                own.dom = document.querySelector(s);
                 own.dom.setAttribute("translate", "no");
                 own.dom.setAttribute("spellcheck", "false");
                 own.dom.addEventListener("beforeinput", function (e) {
-                    console.log(e);
                     if (e.inputType.startsWith("format")) {
                         e.preventDefault();
                         return;
                     }
                     if (!e.inputType.startsWith("history")) {
-                        own.save(own.dom);
+                        if (!own.mod) { own.rev.splice(own.ver - 1); }
+                        own.save(e);
                     }
                     else if (e.inputType === "historyUndo") {
                         own.undo(e);
@@ -148,22 +156,34 @@
                         own.redo(e);
                     }
                     if (e.inputType === "insertFromPaste" || e.inputType === "insertFromDrop") {
-                        own.copy(e);
-                        if (!own.hot) { return; }
-                        e.preventDefault();
-                        own.swap();
+                        own.take(e);
+                        if (own.hot) { e.preventDefault(); own.push(e); }
+                        else { own.hot = true; }
                     }
+                    own.act = e.inputType;
                 });
                 own.dom.addEventListener("input", function (e) {
                     if (e.inputType === "insertFromPaste" || e.inputType === "insertFromDrop") {
-                        own.hot = true;
-                        own.bump(own.dom);
-                        own.swap();
+                        own.dump(e);
+                        own.push(e);
                     }
                 });
                 own.dom.addEventListener('drop', function (e) {
                     //e.preventDefault();
                 });
+                own.dom.addEventListener('keydown', function (e) {
+                    e.stopImmediatePropagation();
+                    if ((e.ctrlKey || e.metaKey) && ((e.shiftKey && e.keyCode === 90) || e.keyCode === 89)) { own.redo(e); }
+                });
+                own.dom.addEventListener('compositionend', function (e) {
+                    own.act = "compositionEnd";
+                });
+            };
+            static clean() {
+                this.ver = 0;
+                this.rev = [];
+                this.mod = true;
+                this.hot = false;
             };
         };
         DropEditor.watch("div[contenteditable='true']");
