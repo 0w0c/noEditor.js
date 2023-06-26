@@ -37,10 +37,11 @@
 </head>
 
 <body>
-    <div contenteditable="true"></div><br />
     <a href="javascript:DropEditor.undo();">Undo</a>
     <a href="javascript:DropEditor.redo();">Redo</a>
     <a href="javascript:DropEditor.clean();">Clean</a>
+    <br />
+    <div contenteditable="true"></div>
     <script>
         // [event filter] [get drop file from] [file upload event] .replace(/<[^>]*>?/gm, '').trim()
         class DropEditor {
@@ -50,7 +51,8 @@
             static hot = false;
             static tmp;
             static dom;
-            static act;
+            static actOld;
+            static actNew;
             static wash(t) {
                 return t
                     .replaceAll(/[\u00A0-\u9999<>\&\'\"\\]/gi, _ => "&#" + _.charCodeAt(0) + ";")
@@ -60,9 +62,9 @@
                     .trim()
             }
             static take(e) {
-                if (e?.dataTransfer?.types.includes("Files")) {
+                if (e.dataTransfer?.types.includes("Files")) {
                 }
-                else if (e?.dataTransfer?.types.includes("text/html")) {
+                else if (e.dataTransfer?.types.includes("text/html")) {
                     this.tmp = new Range().createContextualFragment(
                         e.dataTransfer.getData("text/html")
                             .replaceAll("\v", "\n\t")
@@ -72,14 +74,14 @@
                     );
                     this.tmp.replaceChildren(new Range().createContextualFragment(this.wash(this.tmp.textContent)));
                 }
-                else if (e?.dataTransfer?.types.includes("text/plain")) {
+                else if (e.dataTransfer?.types.includes("text/plain")) {
                     this.tmp = new Text(this.wash(e.dataTransfer.getData("text/plain")));
                 }
                 else {
                     this.tmp = new Text();
                 }
             };
-            static push(e) {
+            static push() {
                 this.dom.focus();
                 const child = this.tmp.lastChild || this.tmp;
                 const slNow = window.getSelection();
@@ -90,9 +92,9 @@
                 slNow.removeAllRanges();
                 slNow.addRange(rgNow);
             };
-            static save(e) {
+            static save() {
                 this.dom.focus();
-                if ((this.act === "insertCompositionText" && e.inputType === "insertCompositionText")) { return; }
+                if ([this.actOld, this.actNew].every(str => ["insertCompositionText", "deleteCompositionText", "insertFromComposition"].includes(str))) { return; }
                 const child = Array.from(this.dom.childNodes);
                 const rgNow = window.getSelection().getRangeAt(0);
                 const rgAll = new Range();
@@ -107,7 +109,7 @@
                 this.ver = this.rev.length;
                 this.mod = true;
             };
-            static dump(e) {
+            static dump() {
                 this.dom.focus();
                 const use = this.rev[this.ver - 1];
                 if (!use) { return; }
@@ -122,18 +124,18 @@
             static undo(e) {
                 this.dom.focus();
                 if (e) { e.preventDefault(); }
-                if (this.mod) { this.save(e); }
+                if (this.mod) { this.save(); }
                 if (this.ver < 2) { return; }
                 this.mod = false;
                 this.ver--;
-                this.dump(e);
+                this.dump();
             };
             static redo(e) {
                 this.dom.focus();
                 if (e) { e.preventDefault(); }
                 if (this.ver === this.rev.length) { return; }
                 this.ver++;
-                this.dump(e);
+                this.dump();
             };
             static watch(s) {
                 const own = this;
@@ -141,13 +143,14 @@
                 own.dom.setAttribute("translate", "no");
                 own.dom.setAttribute("spellcheck", "false");
                 own.dom.addEventListener("beforeinput", function (e) {
+                    own.actNew = e.inputType;
                     if (e.inputType.startsWith("format")) {
                         e.preventDefault();
                         return;
                     }
                     if (!e.inputType.startsWith("history")) {
                         if (!own.mod) { own.rev.splice(own.ver - 1); }
-                        own.save(e);
+                        own.save();
                     }
                     else if (e.inputType === "historyUndo") {
                         own.undo(e);
@@ -157,15 +160,15 @@
                     }
                     if (e.inputType === "insertFromPaste" || e.inputType === "insertFromDrop") {
                         own.take(e);
-                        if (own.hot) { e.preventDefault(); own.push(e); }
+                        if (own.hot) { e.preventDefault(); own.push(); }
                         else { own.hot = true; }
                     }
-                    own.act = e.inputType;
+                    own.actOld = e.inputType;
                 });
                 own.dom.addEventListener("input", function (e) {
                     if (e.inputType === "insertFromPaste" || e.inputType === "insertFromDrop") {
-                        own.dump(e);
-                        own.push(e);
+                        own.dump();
+                        own.push();
                     }
                 });
                 own.dom.addEventListener('drop', function (e) {
@@ -176,7 +179,7 @@
                     if ((e.ctrlKey || e.metaKey) && ((e.shiftKey && e.keyCode === 90) || e.keyCode === 89)) { own.redo(e); }
                 });
                 own.dom.addEventListener('compositionend', function (e) {
-                    own.act = "compositionEnd";
+                    own.actOld = "endComposition";
                 });
             };
             static clean() {
