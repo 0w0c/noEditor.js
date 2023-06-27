@@ -42,27 +42,42 @@
     <a href="javascript:DropEditor.clean();">Clean</a>
     <br />
     <div contenteditable="true"></div>
+    <div id="show"></div>
     <script>
-        // [event filter] [get drop file from] [file upload event] .replace(/<[^>]*>?/gm, '').trim()
         class DropEditor {
             static ver = 0;
             static rev = [];
             static mod = true;
             static hot = false;
-            static tmp;
+            static tmp = new Text();
             static dom;
             static actOld;
             static actNew;
-            static wash(t) {
+            static file(l) {
+                l.forEach(function (f) {
+                    const reader = new FileReader();
+                    reader.onload = function (e) {
+                        f.b64 = e.target.result;
+                        //console.log(e.target.result);
+                        console.log(f);
+                    };
+                    reader.readAsDataURL(f);
+                });
+            }
+            static conv(t) {
                 return t
                     .replaceAll(/[\u00A0-\u9999<>\&\'\"\\]/gi, _ => "&#" + _.charCodeAt(0) + ";")
                     .replaceAll(/\r\n|\r/g, _ => ({ "\r\n": "\n", "\r": "\n" }[_]))
                     .replaceAll(/\v(.*?)\v/gi, "<img src=\"$1\" alt=\"\" />")
                     .replaceAll(/\n{3,}/g, "\n\n")
                     .trim()
-            }
+            };
             static take(e) {
                 if (e.dataTransfer?.types.includes("Files")) {
+                    console.log(e);
+                    //e.preventDefault();
+                    this.file(Array.from(e.dataTransfer.files || []));
+                    //stackoverflow.com/questions/3590058
                 }
                 else if (e.dataTransfer?.types.includes("text/html")) {
                     this.tmp = new Range().createContextualFragment(
@@ -72,13 +87,10 @@
                             .replaceAll(/(\<(?:option|td|th)(?:\>|\s+.*?\>))/gi, " $1")
                             .replaceAll(/(\<(?:address|article|aside|blockquote|br|caption|dd|details|dialog|div|dl|dt|fieldset|figcaption|figure|footer|form|h\d|header|hr|iframe|legend|li|main|nav|ol|p|pre|ruby|section|summary|table|tbody|tfoot|thead|tr|ul)(?:\>|\s+.*?\>))/gi, "\n$1")
                     );
-                    this.tmp.replaceChildren(new Range().createContextualFragment(this.wash(this.tmp.textContent)));
+                    this.tmp.replaceChildren(new Range().createContextualFragment(this.conv(this.tmp.textContent)));
                 }
                 else if (e.dataTransfer?.types.includes("text/plain")) {
-                    this.tmp = new Text(this.wash(e.dataTransfer.getData("text/plain")));
-                }
-                else {
-                    this.tmp = new Text();
+                    this.tmp = new Text(this.conv(e.dataTransfer.getData("text/plain")));
                 }
             };
             static push() {
@@ -115,8 +127,24 @@
                 if (!use) { return; }
                 this.dom.replaceChildren(use.dom.cloneNode(true));
                 const rgNew = new Range();
-                (use.startIndex < 0) ? rgNew.setStart(this.dom.childNodes[use.startOffset], 0) : rgNew.setStart(this.dom.childNodes[use.startIndex], use.startOffset);
-                (use.endIndex < 0) ? rgNew.setEnd(this.dom.childNodes[use.endOffset], 0) : rgNew.setEnd(this.dom.childNodes[use.endIndex], use.endOffset);
+                if (use.startIndex < 0) {
+                    if (use.startOffset >= this.dom.childNodes.length) {
+                        rgNew.setStartAfter(this.dom.lastChild);
+                    } else {
+                        rgNew.setStartBefore(this.dom.childNodes[use.startOffset]);
+                    }
+                } else {
+                    rgNew.setStart(this.dom.childNodes[use.startIndex], use.startOffset);
+                }
+                if (use.endIndex < 0) {
+                    if (use.endOffset >= this.dom.childNodes.length) {
+                        rgNew.setEndAfter(this.dom.lastChild);
+                    } else {
+                        rgNew.setEndBefore(this.dom.childNodes[use.endOffset]);
+                    }
+                } else {
+                    rgNew.setEnd(this.dom.childNodes[use.endIndex], use.endOffset);
+                }
                 const sl = window.getSelection();
                 sl.removeAllRanges();
                 sl.addRange(rgNew);
@@ -138,49 +166,58 @@
                 this.dump();
             };
             static watch(s) {
-                const own = this;
-                own.dom = document.querySelector(s);
-                own.dom.setAttribute("translate", "no");
-                own.dom.setAttribute("spellcheck", "false");
-                own.dom.addEventListener("beforeinput", function (e) {
-                    own.actNew = e.inputType;
-                    if (e.inputType.startsWith("format")) {
-                        e.preventDefault();
-                        return;
-                    }
+                this.dom = document.querySelector(s);
+                this.dom.setAttribute("translate", "no");
+                this.dom.setAttribute("spellcheck", "false");
+                this.dom.addEventListener("beforeinput", e => {
+                    this.actNew = e.inputType;
+                    if (e.inputType.startsWith("format") || (!e.inputType.startsWith("delete") && ![
+                        "historyUndo", "historyRedo",
+                        "insertLineBreak", "insertParagraph", "insertText", "insertCompositionText", "insertFromComposition",
+                        "insertFromYank", "insertFromDrop", "insertFromPaste", "insertFromPasteAsQuotation", "insertReplacementText",
+                    ].includes(e.inputType))) { e.preventDefault(); return; }
                     if (!e.inputType.startsWith("history")) {
-                        if (!own.mod) { own.rev.splice(own.ver - 1); }
-                        own.save();
+                        if (!this.mod) { this.rev.splice(this.ver - 1); }
+                        this.save();
                     }
                     else if (e.inputType === "historyUndo") {
-                        own.undo(e);
+                        this.undo(e);
                     }
                     else if (e.inputType === "historyRedo") {
-                        own.redo(e);
+                        this.redo(e);
                     }
-                    if (e.inputType === "insertFromPaste" || e.inputType === "insertFromDrop") {
-                        own.take(e);
-                        if (own.hot) { e.preventDefault(); own.push(); }
-                        else { own.hot = true; }
+                    if (["insertFromYank", "insertFromDrop", "insertFromPaste", "insertFromPasteAsQuotation", "insertReplacementText"].includes(e.inputType)) {
+                        this.take(e);
+                        if (this.hot) { e.preventDefault(); this.push(); }
+                        else { this.hot = true; }
                     }
-                    own.actOld = e.inputType;
-                });
-                own.dom.addEventListener("input", function (e) {
-                    if (e.inputType === "insertFromPaste" || e.inputType === "insertFromDrop") {
-                        own.dump();
-                        own.push();
+                    this.actOld = e.inputType;
+                }, false);
+                this.dom.addEventListener("input", e => {
+                    if (["insertFromYank", "insertFromDrop", "insertFromPaste", "insertFromPasteAsQuotation", "insertReplacementText"].includes(e.inputType)) {
+                        this.dump();
+                        this.push();
                     }
-                });
-                own.dom.addEventListener('drop', function (e) {
-                    //e.preventDefault();
-                });
-                own.dom.addEventListener('keydown', function (e) {
+                }, false);
+                this.dom.addEventListener('compositionend', e => {
+                    this.actOld = "endComposition";
+                }, false);
+                this.dom.addEventListener('keydown', e => {
                     e.stopImmediatePropagation();
-                    if ((e.ctrlKey || e.metaKey) && ((e.shiftKey && e.keyCode === 90) || e.keyCode === 89)) { own.redo(e); }
+                    if ((e.ctrlKey || e.metaKey) && ((e.shiftKey && e.keyCode === 90) || e.keyCode === 89)) { this.redo(e); }
                 });
-                own.dom.addEventListener('compositionend', function (e) {
-                    own.actOld = "endComposition";
-                });
+                ['dragenter', 'dragover', 'drop'].forEach(_ => window.addEventListener(_, e => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'none';
+                    e.dataTransfer.effectAllowed = 'none';
+                }, false));
+                this.dom.addEventListener('dragover', e => {
+                    e.stopPropagation();
+                }, false);
+                this.dom.addEventListener('drop', e => {
+                    e.stopPropagation();
+                    this.take(e);
+                }, false);
             };
             static clean() {
                 this.ver = 0;
