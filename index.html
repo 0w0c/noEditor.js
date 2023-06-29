@@ -20,7 +20,7 @@
             margin: 10px auto;
             padding: 10px;
             text-align: left;
-            vertical-align: text-bottom;
+            vertical-align: text-top;
             line-height: 1.5;
             font-family: Arial, Microsoft Yahei;
             font-size: 14px;
@@ -32,13 +32,14 @@
         }
 
         div[contenteditable="true"] img {
-            cursor: grab;
+            cursor: pointer;
             max-width: 100%;
         }
 
         ._editor_file_pending {
-            border: 0.5px solid black;
+            margin: 0 2px;
             vertical-align: inherit;
+            opacity: 0.2;
         }
     </style>
 </head>
@@ -47,11 +48,11 @@
     <a href="javascript:Editor.undo();">Undo</a>
     <a href="javascript:Editor.redo();">Redo</a>
     <a href="javascript:Editor.clean();">Clean</a>
+    <a href="javascript:console.dir(Editor.dom);">Logger</a>
     <br />
     <div contenteditable="true"></div>
-    <div id="show"></div>
     <script>
-        class Editor {
+        class Editor { // IOS Upload || Upload
             static dom;
             static css;
             static ver = 0;
@@ -73,15 +74,10 @@
             };
             static copy(e) {
                 e.preventDefault();
+                let act = "";
                 let txt = "";
-                if (e.dataTransfer?.types.includes("Files")) {
-                    Array.from(e.dataTransfer.items || []) //stackoverflow.com/questions/3590058
-                        .flatMap(i => (i.webkitGetAsEntry()?.isFile === false) ? [] : (i.getAsFile() || []))
-                        .sort((a, b) => new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' }).compare(a.name, b.name))
-                        .forEach(f => { this.box.push(f); txt += "\vdata:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E# " + this.box.length + "\v\n"; });
-                    //.forEach(f => { this.box.push(f); txt += "\vdata:,#" + this.box.length + "\v\n"; });
-                }
-                else if (e.dataTransfer?.types.includes("text/html")) {
+                if (e.dataTransfer?.types.includes("text/html")) {
+                    act = "html";
                     txt = new Range().createContextualFragment(e.dataTransfer.getData("text/html")
                         .replaceAll("\v", "\n\t")
                         .replaceAll(/\<img\s+.*?src=\"([^"]+)\".*?\>/gi, "\v$1\v")
@@ -90,32 +86,39 @@
                     ).textContent;
                 }
                 else if (e.dataTransfer?.types.includes("text/plain")) {
+                    act = "text";
                     txt = e.dataTransfer.getData("text/plain");
                 }
-                const doc = new DocumentFragment();
-                doc.replaceChildren(new Range().createContextualFragment(txt
+                else if (e.dataTransfer?.types.includes("Files")) {
+                    act = "file";
+                    Array.from(e.dataTransfer.items || []) //stackoverflow.com/questions/3590058
+                        .flatMap(i => (i.webkitGetAsEntry()?.isFile === false) ? [] : (i.getAsFile() || []))
+                        .sort((a, b) => new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' }).compare(a.name, b.name))
+                        .forEach(f => { this.box.push(f); txt += "\vdata:image/bmp;base64,Qk0eAAAAAAAAABoAAAAMAAAAAQABAAEAGAAAAP8A#" + this.box.length + "\v\n"; })
+                }
+                txt = txt
                     .replaceAll(/[\u00A0-\u9999<>\&\'\"\\]/gi, _ => "&#" + _.charCodeAt(0) + ";")
-                    .replaceAll(/\v(data\:.*?(\# .*?))\v/gi, "<img src=\"$1\" alt=\" \[ -% \] $2 \" class=\"_editor_file_pending\" width=\"100\" height=\"" + this.css.rectHeight + "\" />")
+                    .replaceAll(/\v(data\:.*?(\#.*?))\v/gi, "<img src=\"$1\" alt=\" \[ -% \] $2 \" class=\"_editor_file_pending\" width=\"100\" height=\"" + this.css.rectHeight + "\" />")
                     .replaceAll(/\v(.*?)\v/gi, "<img src=\"$1\" alt=\"\" />")
                     .replaceAll(/\r\n|\r/g, _ => ({ "\r\n": "\n", "\r": "\n" }[_]))
                     .replaceAll(/\n{3,}/g, "\n\n")
-                    .trim()
-                ));
-                this.dom.focus();
-                const slNow = document.getSelection();
-                const rgNow = slNow.getRangeAt(0);
-                const child = doc.lastChild;
-                rgNow.deleteContents();
-                rgNow.insertNode(doc);
-                if (child) { rgNow.setStartAfter(child); }
-                slNow.removeAllRanges();
-                slNow.addRange(rgNow);
+                if (act !== "text") { txt = txt.trim(); }
+                const doc = new DocumentFragment();
+                doc.replaceChildren(new Range().createContextualFragment(txt));
+                const rg = this.range(e);
+                const lc = doc.lastChild;
+                rg.deleteContents();
+                rg.insertNode(doc);
+                if (lc) { rg.setStartAfter(lc); }
+                const sl = document.getSelection();
+                sl.removeAllRanges();
+                sl.addRange(rg);
             };
-            static save() {
-                this.dom.focus();
+            static save(e) {
                 if ([this.actOld, this.actNew].every(str => ["insertCompositionText", "deleteCompositionText", "insertFromComposition"].includes(str))) { return; }
+                if (!this.mod) { this.rev.splice(this.ver - 1); }
                 const child = Array.from(this.dom.childNodes);
-                const rgNow = window.getSelection().getRangeAt(0);
+                const rgNow = this.range(e);
                 const rgAll = new Range();
                 rgAll.selectNodeContents(this.dom);
                 this.rev.push({
@@ -128,8 +131,7 @@
                 this.ver = this.rev.length;
                 this.mod = true;
             };
-            static dump() {
-                this.dom.focus();
+            static dump(e) {
                 const use = this.rev[this.ver - 1];
                 if (!use) { return; }
                 this.dom.replaceChildren(use.dom.cloneNode(true));
@@ -152,25 +154,32 @@
                 } else {
                     rgNew.setEnd(this.dom.childNodes[use.endIndex], use.endOffset);
                 }
+                this.dom.focus();
                 const sl = window.getSelection();
                 sl.removeAllRanges();
                 sl.addRange(rgNew);
             };
             static redo(e) {
-                this.dom.focus();
                 if (e) { e.preventDefault(); }
                 if (this.ver === this.rev.length) { return; }
                 this.ver++;
-                this.dump();
+                this.dump(e);
             };
             static undo(e) {
-                this.dom.focus();
                 if (e) { e.preventDefault(); }
-                if (this.mod) { this.save(); }
+                if (this.mod) { this.save(e); }
                 if (this.ver < 2) { return; }
                 this.mod = false;
                 this.ver--;
-                this.dump();
+                this.dump(e);
+            };
+            static range(e) {
+                this.dom.focus();
+                if (e && e.clientX && e.clientY) {
+                    if (document.caretPositionFromPoint) { return document.caretPositionFromPoint(e.clientX, e.clientY); }
+                    if (document.caretRangeFromPoint) { return document.caretRangeFromPoint(e.clientX, e.clientY); }
+                }
+                return document.getSelection().getRangeAt(0);
             };
             static watch(s) {
                 this.dom = document.querySelector(s);
@@ -182,7 +191,6 @@
                 this.css.rectHeight = rct.getClientRects()[0].height;
                 this.dom.removeChild(rct);
                 this.dom.addEventListener("beforeinput", e => {
-                    console.log(e);
                     this.actNew = e.inputType;
                     if (e.inputType.startsWith("format") || (!e.inputType.startsWith("delete") && ![
                         "historyUndo", "historyRedo",
@@ -190,8 +198,7 @@
                         "insertFromDrop", "insertFromYank", "insertFromPaste", "insertFromPasteAsQuotation", "insertReplacementText",
                     ].includes(e.inputType))) { e.preventDefault(); return; }
                     if (!e.inputType.startsWith("history")) {
-                        if (!this.mod) { this.rev.splice(this.ver - 1); }
-                        this.save();
+                        this.save(e);
                     }
                     else if (e.inputType === "historyUndo") {
                         this.undo(e);
@@ -212,15 +219,16 @@
                     if ((e.ctrlKey || e.metaKey) && ((e.shiftKey && e.keyCode === 90) || e.keyCode === 89)) { this.redo(e); }
                     else if ((e.ctrlKey || e.metaKey) && e.keyCode === 90) { this.undo(e); }
                 }, false);
+                this.dom.addEventListener('drop', e => {
+                    if (e.dataTransfer?.types?.length === 1 && e.dataTransfer.types[0] === "Files") {
+                        this.save(e);
+                        this.copy(e);
+                    }
+                }, false);
                 ['dragenter', 'dragover', 'drop'].forEach(_ => {
-                    console.log(_)
                     window.addEventListener(_, e => e.preventDefault(), false);
                     this.dom.addEventListener(_, e => e.stopPropagation(), false);
                 });
-                this.dom.addEventListener('drop', e => {
-                    console.log(e);
-                    if (e.dataTransfer?.types.includes("Files")) { this.copy(e); }
-                }, false);
             };
             static clean() {
                 this.ver = 0;
