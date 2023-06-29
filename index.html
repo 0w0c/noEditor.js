@@ -52,7 +52,7 @@
     <br />
     <div contenteditable="true"></div>
     <script>
-        class Editor { // IOS Upload || Upload
+        class Editor { // Initial \n || Insert Scroll || Firefox / IOS Copy || Upload
             static dom;
             static css;
             static ver = 0;
@@ -73,17 +73,19 @@
                 });
             };
             static copy(e) {
-                e.preventDefault();
+                if (e) { e.preventDefault(); }
                 let act = "";
                 let txt = "";
                 if (e.dataTransfer?.types.includes("text/html")) {
                     act = "html";
-                    txt = new Range().createContextualFragment(e.dataTransfer.getData("text/html")
-                        .replaceAll("\v", "\n\t")
-                        .replaceAll(/\<img\s+.*?src=\"([^"]+)\".*?\>/gi, "\v$1\v")
-                        .replaceAll(/(\<(?:option|td|th)(?:\>|\s+.*?\>))/gi, " $1")
-                        .replaceAll(/(\<(?:address|article|aside|blockquote|br|caption|dd|details|dialog|div|dl|dt|fieldset|figcaption|figure|footer|form|h\d|header|hr|iframe|legend|li|main|nav|ol|p|pre|ruby|section|summary|table|tbody|tfoot|thead|tr|ul)(?:\>|\s+.*?\>))/gi, "\n$1")
-                    ).textContent;
+                    txt = e.dataTransfer.getData("text").replace(/^\n*(.*?)\n*$/, // ??
+                        new Range().createContextualFragment(e.dataTransfer.getData("text/html")
+                            .replace("\v", "\n\t")
+                            .replace(/\<img\s+.*?src=\"([^"]+)\".*?\>/gi, "\v$1\v")
+                            .replace(/(\<(?:option|td|th)(?:\>|\s+.*?\>))/gi, " $1")
+                            .replace(/(\<(?:address|article|aside|blockquote|br|caption|dd|details|dialog|div|dl|dt|fieldset|figcaption|figure|footer|form|h\d|header|hr|iframe|legend|li|main|nav|ol|p|pre|ruby|section|summary|table|tbody|tfoot|thead|tr|ul)(?:\>|\s+.*?\>))/gi, "\n$1")
+                        ).textContent.trim()
+                    );
                 }
                 else if (e.dataTransfer?.types.includes("text/plain")) {
                     act = "text";
@@ -91,22 +93,22 @@
                 }
                 else if (e.dataTransfer?.types.includes("Files")) {
                     act = "file";
-                    Array.from(e.dataTransfer.items || []) //stackoverflow.com/questions/3590058
+                    txt = Array.from(e.dataTransfer.items || []) //stackoverflow.com/questions/3590058
                         .flatMap(i => (i.webkitGetAsEntry()?.isFile === false) ? [] : (i.getAsFile() || []))
                         .sort((a, b) => new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' }).compare(a.name, b.name))
-                        .forEach(f => { this.box.push(f); txt += "\vdata:image/bmp;base64,Qk0eAAAAAAAAABoAAAAMAAAAAQABAAEAGAAAAP8A#" + this.box.length + "\v\n"; })
+                        .map(f => { this.box.push(f); return "\vdata:image/bmp;base64,Qk0eAAAAAAAAABoAAAAMAAAAAQABAAEAGAAAAP8A#" + this.box.length + "\v"; })
+                        .join("\n")
                 }
                 txt = txt
-                    .replaceAll(/[\u00A0-\u9999<>\&\'\"\\]/gi, _ => "&#" + _.charCodeAt(0) + ";")
-                    .replaceAll(/\v(data\:.*?(\#.*?))\v/gi, "<img src=\"$1\" alt=\" \[ -% \] $2 \" class=\"_editor_file_pending\" width=\"100\" height=\"" + this.css.rectHeight + "\" />")
-                    .replaceAll(/\v(.*?)\v/gi, "<img src=\"$1\" alt=\"\" />")
-                    .replaceAll(/\r\n|\r/g, _ => ({ "\r\n": "\n", "\r": "\n" }[_]))
-                    .replaceAll(/\n{3,}/g, "\n\n")
-                if (act !== "text") { txt = txt.trim(); }
+                    .replace(/[\u00A0-\u9999<>\&\'\"\\]/gi, _ => "&#" + _.charCodeAt(0) + ";")
+                    .replace(/\v(data\:.*?(\#.*?))\v/gi, "<img src=\"$1\" alt=\" \[ -% \] $2 \" class=\"_editor_file_pending\" width=\"100\" height=\"" + this.css.rectHeight + "\" />")
+                    .replace(/\v(.*?)\v/gi, "<img src=\"$1\" alt=\"\" />")
+                    .replace(/\r\n|\r/g, _ => "\n")
+                    .replace(/\n{3,}/g, "\n\n")
                 const doc = new DocumentFragment();
                 doc.replaceChildren(new Range().createContextualFragment(txt));
-                const rg = this.range(e);
                 const lc = doc.lastChild;
+                const rg = this.range(e);
                 rg.deleteContents();
                 rg.insertNode(doc);
                 if (lc) { rg.setStartAfter(lc); }
@@ -135,29 +137,29 @@
                 const use = this.rev[this.ver - 1];
                 if (!use) { return; }
                 this.dom.replaceChildren(use.dom.cloneNode(true));
-                const rgNew = new Range();
+                const rg = new Range();
                 if (use.startIndex < 0) {
                     if (use.startOffset >= this.dom.childNodes.length) {
-                        rgNew.setStartAfter(this.dom.lastChild);
+                        rg.setStartAfter(this.dom.lastChild);
                     } else {
-                        rgNew.setStartBefore(this.dom.childNodes[use.startOffset]);
+                        rg.setStartBefore(this.dom.childNodes[use.startOffset]);
                     }
                 } else {
-                    rgNew.setStart(this.dom.childNodes[use.startIndex], use.startOffset);
+                    rg.setStart(this.dom.childNodes[use.startIndex], use.startOffset);
                 }
                 if (use.endIndex < 0) {
                     if (use.endOffset >= this.dom.childNodes.length) {
-                        rgNew.setEndAfter(this.dom.lastChild);
+                        rg.setEndAfter(this.dom.lastChild);
                     } else {
-                        rgNew.setEndBefore(this.dom.childNodes[use.endOffset]);
+                        rg.setEndBefore(this.dom.childNodes[use.endOffset]);
                     }
                 } else {
-                    rgNew.setEnd(this.dom.childNodes[use.endIndex], use.endOffset);
+                    rg.setEnd(this.dom.childNodes[use.endIndex], use.endOffset);
                 }
                 this.dom.focus();
-                const sl = window.getSelection();
+                const sl = document.getSelection();
                 sl.removeAllRanges();
-                sl.addRange(rgNew);
+                sl.addRange(rg);
             };
             static redo(e) {
                 if (e) { e.preventDefault(); }
@@ -194,7 +196,8 @@
                     this.actNew = e.inputType;
                     if (e.inputType.startsWith("format") || (!e.inputType.startsWith("delete") && ![
                         "historyUndo", "historyRedo",
-                        "insertLineBreak", "insertParagraph", "insertText", "insertCompositionText", "insertFromComposition",
+                        "insertLineBreak", "insertParagraph",
+                        "insertText", "insertCompositionText", "insertFromComposition",
                         "insertFromDrop", "insertFromYank", "insertFromPaste", "insertFromPasteAsQuotation", "insertReplacementText",
                     ].includes(e.inputType))) { e.preventDefault(); return; }
                     if (!e.inputType.startsWith("history")) {
@@ -208,6 +211,16 @@
                     }
                     if (["insertFromDrop", "insertFromYank", "insertFromPaste", "insertFromPasteAsQuotation", "insertReplacementText"].includes(e.inputType)) {
                         this.copy(e);
+                    }
+                    else if (["insertLineBreak", "insertParagraph"].includes(e.inputType)) {
+                        e.preventDefault();
+                        const rg = this.range(e);
+                        rg.deleteContents();
+                        rg.insertNode(new Text("\n"));
+                        rg.collapse(false);
+                        const sl = document.getSelection();
+                        sl.removeAllRanges();
+                        sl.addRange(rg);
                     }
                     this.actOld = e.inputType;
                 }, false);
