@@ -28,6 +28,7 @@
             word-break: break-all;
             white-space: break-spaces;
             overflow-wrap: break-word;
+            overflow-anchor: none;
             overflow: auto;
         }
 
@@ -53,7 +54,6 @@
     <div contenteditable="true"></div>
     <script>
         class Editor {
-            // Insert Scroll
             // Undo Redo
             // Reduce Word Undo
             // !! Firefox / IOS BLob Copy
@@ -79,10 +79,8 @@
             };
             static copy(e) {
                 if (e) { e.preventDefault(); }
-                let act = "";
                 let txt = "";
                 if (e.dataTransfer?.types.includes("text/html")) {
-                    act = "html";
                     const tmp = e.dataTransfer.getData("text");
                     txt = new Range().createContextualFragment(e.dataTransfer.getData("text/html")
                         .replace(/\v/g, "\n\t")
@@ -94,11 +92,9 @@
                         .replace(/\s+$/, tmp.match(/(\n*)[^\S\n]*$/)[1])
                 }
                 else if (e.dataTransfer?.types.includes("text/plain")) {
-                    act = "text";
                     txt = e.dataTransfer.getData("text/plain");
                 }
                 else if (e.dataTransfer?.types.includes("Files")) {
-                    act = "file";
                     txt = Array.from(e.dataTransfer.items || []) //stackoverflow.com/questions/3590058
                         .flatMap(i => (i.webkitGetAsEntry()?.isFile === false) ? [] : (i.getAsFile() || []))
                         .sort((a, b) => new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' }).compare(a.name, b.name))
@@ -121,9 +117,7 @@
                 const sl = document.getSelection();
                 sl.removeAllRanges();
                 sl.addRange(rg);
-                //this.dom.scrollTo(0, rg.getBoundingClientRect().top + this.dom.scrollTop);
-                //this.dom.setSelectionRange(selectionStart, selectionEnd);
-                //this.dom.scrollTo(0, this.dom.scrollHeight); //??
+                this.slide(rg);
                 this.final(e);
             };
             static save(e) {
@@ -146,6 +140,7 @@
             static dump(e) {
                 const use = this.rev[this.ver - 1];
                 if (!use) { return; }
+                this.dom.focus();
                 this.dom.replaceChildren(use.dom.cloneNode(true));
                 const rg = new Range();
                 if (use.startIndex < 0) {
@@ -166,10 +161,10 @@
                 } else {
                     rg.setEnd(this.dom.childNodes[use.endIndex], use.endOffset);
                 }
-                this.dom.focus();
                 const sl = document.getSelection();
                 sl.removeAllRanges();
                 sl.addRange(rg);
+                this.slide(rg);
             };
             static redo(e) {
                 if (e) { e.preventDefault(); }
@@ -195,10 +190,17 @@
                 }
                 return document.getSelection().getRangeAt(0);
             };
+            static slide(r) {
+                const n = new Text("\0");
+                r.insertNode(n);
+                this.dom.scrollBy({ top: r.getBoundingClientRect().top - this.dom.offsetHeight, behavior: "instant" });
+                n.remove();
+            };
             static final(e) {
                 if (this.dom.innerText.slice(-1) !== "\n") { this.dom.appendChild(new Text("\n")); }
+                this.dom.focus();
                 console.log("done");
-            }
+            };
             static watch(s) {
                 this.dom = document.querySelector(s);
                 this.dom.setAttribute("translate", "no");
@@ -233,10 +235,12 @@
                         const rg = this.range(e);
                         rg.deleteContents();
                         rg.insertNode(new Text("\n"));
+                        const rc = rg.getBoundingClientRect();
                         rg.collapse(false);
                         const sl = document.getSelection();
                         sl.removeAllRanges();
                         sl.addRange(rg);
+                        if (rc.top > this.dom.offsetHeight - this.css.rectHeight) { this.slide(rg); }
                         this.final(e);
                     }
                     this.actOld = e.inputType;
