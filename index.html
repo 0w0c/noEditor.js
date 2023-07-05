@@ -194,7 +194,7 @@
             static slide(r) {
                 const n = new Text("\0");
                 r.insertNode(n);
-                this.dom.scrollBy({ top: r.getBoundingClientRect().top + window.scrollY - this.dom.offsetHeight, behavior: "instant" });
+                this.dom.scrollBy({ top: r.getBoundingClientRect().top - this.dom.offsetHeight, behavior: "instant" });
                 n.remove();
             };
             static final(e) {
@@ -241,7 +241,7 @@
                         const sl = document.getSelection();
                         sl.removeAllRanges();
                         sl.addRange(rg);
-                        if (rc.top + window.scrollY > this.dom.offsetHeight - this.css.rectHeight) { this.slide(rg); }
+                        if (rc.bottom + window.scrollY + this.css.rectHeight > document.body.clientTop + this.dom.offsetTop + this.dom.offsetHeight) { this.slide(rg); }
                         this.final(e);
                     }
                     this.actOld = e.inputType;
