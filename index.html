@@ -241,7 +241,7 @@
                         const sl = document.getSelection();
                         sl.removeAllRanges();
                         sl.addRange(rg);
-                        if (rc.bottom + window.scrollY + this.css.rectHeight > document.body.clientTop + this.dom.offsetTop + this.dom.clientTop + this.dom.clientHeight) { this.slide(rg); }
+                        if (rc.bottom + window.scrollY + this.css.rectHeight > this.dom.getBoundingClientRect().top + this.dom.clientTop + this.dom.clientHeight) { this.slide(rg); }
                         this.final(e);
                     }
                     this.actOld = e.inputType;
