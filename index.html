@@ -104,7 +104,7 @@
                 }
                 txt = txt
                     .replace(/[\u00A0-\u9999<>\&\'\"\\]/gi, _ => "&#" + _.charCodeAt(0) + ";")
-                    .replace(/\v(data\:.*?(\#.*?))\v/gi, "<img src=\"$1\" alt=\" \[ -% \] $2 \" class=\"_editor_file_pending\" width=\"100\" height=\"" + this.css.rectHeight + "\" />")
+                    .replace(/\v(data\:.*?(\#.*?))\v/gi, "<img src=\"$1\" alt=\" \[ -% \] $2 \" class=\"_editor_file_pending\" width=\"100\" height=\"" + this.css.textHeight + "\" />")
                     .replace(/\v(.*?)\v/gi, "<img src=\"$1\" alt=\"\" />")
                     .replace(/\r\n|\r/g, "\n")
                     .replace(/\n{3,}/g, "\n\n")
@@ -193,8 +193,11 @@
             };
             static slide(r) {
                 const n = new Text("\0");
-                r.insertNode(n);
-                this.dom.scrollBy({ top: r.getBoundingClientRect().top - this.dom.offsetHeight, behavior: "instant" });
+                r.insertNode(n); // 另一种方法 scrollToView
+                // 1光标到页面顶部 window.scrollY + r.getBoundingClientRect().bottom
+                // 2框底到页面顶部 window.scrollY + this.dom.getBoundingClientRect().top + this.dom.clientTop + this.dom.clientHeight
+                // 光标到框底 1 - 2 增加至现有scrollTop
+                this.dom.scrollTop += r.getBoundingClientRect().bottom - this.dom.getBoundingClientRect().top - this.dom.clientTop - this.dom.clientHeight;
                 n.remove();
             };
             static final(e) {
@@ -209,7 +212,7 @@
                 this.css = window.getComputedStyle(this.dom);
                 const rct = document.createElement("span");
                 this.dom.appendChild(rct);
-                this.css.rectHeight = rct.getClientRects()[0].height;
+                this.css.textHeight = rct.getClientRects()[0].height;
                 this.dom.removeChild(rct);
                 this.dom.addEventListener("beforeinput", e => {
                     this.actNew = e.inputType;
@@ -241,7 +244,7 @@
                         const sl = document.getSelection();
                         sl.removeAllRanges();
                         sl.addRange(rg);
-                        if (rc.bottom + this.css.rectHeight > this.dom.getBoundingClientRect().top + this.dom.clientTop + this.dom.clientHeight) { this.slide(rg); }
+                        if (rc.bottom + this.css.textHeight > this.dom.getBoundingClientRect().top + this.dom.clientTop + this.dom.clientHeight) { this.slide(rg); }
                         this.final(e);
                     }
                     this.actOld = e.inputType;
