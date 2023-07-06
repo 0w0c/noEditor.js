@@ -30,11 +30,12 @@
             overflow-wrap: break-word;
             overflow-anchor: none;
             overflow: auto;
+            cursor: text;
         }
 
         div[contenteditable="true"] img {
-            cursor: pointer;
             max-width: 100%;
+            cursor: pointer;
         }
 
         ._editor_file_pending {
@@ -166,13 +167,13 @@
                 sl.removeAllRanges();
                 sl.addRange(rg);
                 this.slide(rg);
+                this.final(e);
             };
             static redo(e) {
                 if (e) { e.preventDefault(); }
                 if (this.ver === this.rev.length) { return; }
                 this.ver++;
                 this.dump(e);
-                this.final(e);
             };
             static undo(e) {
                 if (e) { e.preventDefault(); }
@@ -181,7 +182,6 @@
                 this.mod = false;
                 this.ver--;
                 this.dump(e);
-                this.final(e);
             };
             static range(e) {
                 this.dom.focus();
@@ -192,13 +192,12 @@
                 return document.getSelection().getRangeAt(0);
             };
             static slide(r) {
-                const n = new Text("\0");
-                r.insertNode(n); // 另一种方法 scrollToView
-                // 1光标到页面顶部 window.scrollY + r.getBoundingClientRect().bottom
-                // 2框底到页面顶部 window.scrollY + this.dom.getBoundingClientRect().top + this.dom.clientTop + this.dom.clientHeight
-                // 光标到框底 1 - 2 增加至现有scrollTop
-                this.dom.scrollTop += r.getBoundingClientRect().bottom - this.dom.getBoundingClientRect().top - this.dom.clientTop - this.dom.clientHeight;
+                const n = new Text("\u200D");
+                r.insertNode(n);
+                const b = r.getBoundingClientRect().bottom;
                 n.remove();
+                const t = this.dom.getBoundingClientRect().top + this.dom.clientTop + this.dom.clientHeight - parseInt(this.css.paddingBottom);
+                if (b + window.scrollY > t) { this.dom.scrollTop += b - t; }
             };
             static final(e) {
                 if (this.dom.innerText.slice(-1) !== "\n") { this.dom.appendChild(new Text("\n")); }
@@ -244,7 +243,7 @@
                         const sl = document.getSelection();
                         sl.removeAllRanges();
                         sl.addRange(rg);
-                        if (rc.bottom + this.css.textHeight > this.dom.getBoundingClientRect().top + this.dom.clientTop + this.dom.clientHeight) { this.slide(rg); }
+                        this.slide(rg);
                         this.final(e);
                     }
                     this.actOld = e.inputType;
