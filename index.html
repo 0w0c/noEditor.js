@@ -20,7 +20,7 @@
             margin: 10px auto;
             padding: 10px;
             text-align: left;
-            vertical-align: text-top;
+            vertical-align: text-bottom;
             line-height: 1.5;
             font-family: Arial, Microsoft Yahei;
             font-size: 14px;
@@ -55,9 +55,8 @@
     <div contenteditable="true"></div>
     <script>
         class Editor {
-            // IOS Scroll
-            // IOS Copy BLob
             // IOS Undo Redo
+            // IOS Copy BLob
             // Reduce Word Undo
             // Upload
             static dom;
@@ -194,15 +193,13 @@
             static slide(r) {
                 const n = new Text("\u200D");
                 r.insertNode(n);
-                const b = r.getBoundingClientRect().bottom;
+                const d = r.getBoundingClientRect().bottom - (this.dom.getBoundingClientRect().top + this.dom.clientTop + this.dom.clientHeight - parseInt(this.css.paddingBottom));
                 n.remove();
-                const t = this.dom.getBoundingClientRect().top + this.dom.clientTop + this.dom.clientHeight - parseInt(this.css.paddingBottom);
-                if (b + window.scrollY > t) { this.dom.scrollTop += b - t; }
+                if (d > 0) { this.dom.scrollTop += d; }
             };
             static final(e) {
                 if (this.dom.innerText.slice(-1) !== "\n") { this.dom.appendChild(new Text("\n")); }
                 this.dom.focus();
-                console.log("done");
             };
             static watch(s) {
                 this.dom = document.querySelector(s);
@@ -238,7 +235,6 @@
                         const rg = this.range(e);
                         rg.deleteContents();
                         rg.insertNode(new Text("\n"));
-                        const rc = rg.getBoundingClientRect();
                         rg.collapse(false);
                         const sl = document.getSelection();
                         sl.removeAllRanges();
