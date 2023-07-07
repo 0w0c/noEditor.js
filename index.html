@@ -55,7 +55,7 @@
     <div contenteditable="true"></div>
     <script>
         class Editor {
-            // File Range & Firefox Undo Range
+            // File Range
             // IOS Copy BLob
             // Reduce Word Undo
             // Upload
@@ -108,15 +108,14 @@
                     .replace(/\n{3,}/g, "\n\n")
                 const doc = new DocumentFragment();
                 doc.replaceChildren(new Range().createContextualFragment(txt));
-                const lc = doc.lastChild;
-                const rg = this.range(e);
-                rg.deleteContents();
-                rg.insertNode(doc);
-                if (lc) { rg.setStartAfter(lc); }
-                const sl = document.getSelection();
-                sl.removeAllRanges();
-                sl.addRange(rg);
-                this.slide(rg);
+                const l = doc.lastChild;
+                const r = this.range(e);
+                r.rg.deleteContents();
+                r.rg.insertNode(doc);
+                if (l) { r.rg.setStartAfter(l); }
+                this.slide(r.rg);
+                r.sl.removeAllRanges();
+                r.sl.addRange(r.rg);
                 this.save(e);
             };
             static dump(e) {
@@ -125,29 +124,28 @@
                 if (!use) { return; }
                 this.dom.focus();
                 this.dom.replaceChildren(use.dom.cloneNode(true));
-                const rg = new Range();
+                const r = this.range(e);
                 if (use.startIndex < 0) {
                     if (use.startOffset >= this.dom.childNodes.length) {
-                        rg.setStartAfter(this.dom.lastChild);
+                        r.rg.setStartAfter(this.dom.lastChild);
                     } else {
-                        rg.setStartBefore(this.dom.childNodes[use.startOffset]);
+                        r.rg.setStartBefore(this.dom.childNodes[use.startOffset]);
                     }
                 } else {
-                    rg.setStart(this.dom.childNodes[use.startIndex], use.startOffset);
+                    r.rg.setStart(this.dom.childNodes[use.startIndex], use.startOffset);
                 }
                 if (use.endIndex < 0) {
                     if (use.endOffset >= this.dom.childNodes.length) {
-                        rg.setEndAfter(this.dom.lastChild);
+                        r.rg.setEndAfter(this.dom.lastChild);
                     } else {
-                        rg.setEndBefore(this.dom.childNodes[use.endOffset]);
+                        r.rg.setEndBefore(this.dom.childNodes[use.endOffset]);
                     }
                 } else {
-                    rg.setEnd(this.dom.childNodes[use.endIndex], use.endOffset);
+                    r.rg.setEnd(this.dom.childNodes[use.endIndex], use.endOffset);
                 }
-                const sl = document.getSelection();
-                sl.removeAllRanges();
-                sl.addRange(rg);
-                this.slide(rg);
+                this.slide(r.rg);
+                r.sl.removeAllRanges();
+                r.sl.addRange(r.rg);
                 this.save(e);
             };
             static save(e) {
@@ -157,7 +155,7 @@
                 if (!this.tap && e?.inputType && !e.inputType.startsWith("history")) { this.rev.splice(this.ver); this.tap = true; }
                 if (!this.tap || (e?.inputType && ["insertCompositionText", "deleteCompositionText", "insertFromComposition"].includes(e.inputType))) { return; }
                 const child = Array.from(this.dom.childNodes);
-                const rgNow = this.range(e);
+                const rgNow = this.range(e).rg;
                 const rgAll = new Range();
                 rgAll.selectNodeContents(this.dom);
                 this.rev.push({
@@ -185,14 +183,16 @@
             };
             static range(e) {
                 this.dom.focus();
+                const sl = document.getSelection();
                 if (e && e.clientX && e.clientY) {
-                    if (document.caretPositionFromPoint) { return document.caretPositionFromPoint(e.clientX, e.clientY); }
-                    if (document.caretRangeFromPoint) { return document.caretRangeFromPoint(e.clientX, e.clientY); }
+                    if (document.caretPositionFromPoint) { return { sl, rg: document.caretPositionFromPoint(e.clientX, e.clientY) } }
+                    if (document.caretRangeFromPoint) { return { sl, rg: document.caretRangeFromPoint(e.clientX, e.clientY) } }
                 }
-                return document.getSelection().getRangeAt(0);
+                return { sl, rg: sl.rangeCount ? sl.getRangeAt(0) : new Range() }
             };
             static slide(r) {
                 const n = new Text("\u200D");
+                r = r.cloneRange();
                 r.insertNode(n);
                 const d = r.getBoundingClientRect().bottom - (this.dom.getBoundingClientRect().top + this.dom.clientTop + this.dom.clientHeight - parseInt(this.css.paddingBottom));
                 n.remove();
@@ -215,14 +215,13 @@
                         "insertFromDrop", "insertFromYank", "insertFromPaste", "insertFromPasteAsQuotation", "insertReplacementText",
                     ].includes(e.inputType))) { e.preventDefault(); return; }
                     if (["insertLineBreak", "insertParagraph"].includes(e.inputType)) {
-                        const rg = this.range(e);
-                        rg.deleteContents();
-                        rg.insertNode(new Text("\n"));
-                        rg.collapse(false);
-                        const sl = document.getSelection();
-                        sl.removeAllRanges();
-                        sl.addRange(rg);
-                        this.slide(rg);
+                        const r = this.range(e);
+                        r.rg.deleteContents();
+                        r.rg.insertNode(new Text("\n"));
+                        r.rg.collapse(false);
+                        this.slide(r.rg);
+                        r.sl.removeAllRanges();
+                        r.sl.addRange(r.rg);
                         this.save(e);
                     }
                     else if (["insertFromDrop", "insertFromYank", "insertFromPaste", "insertFromPasteAsQuotation", "insertReplacementText"].includes(e.inputType)) {
@@ -257,7 +256,7 @@
                     if ((e.ctrlKey || e.metaKey) && ((e.shiftKey && e.keyCode === 90) || e.keyCode === 89)) { this.redo(e); }
                     else if ((e.ctrlKey || e.metaKey) && e.keyCode === 90) { this.undo(e); }
                 }, false);
-                this.save();
+                this.save(window.event);
             };
             static sweep() {
                 this.ver = 0;
