@@ -49,13 +49,13 @@
 <body>
     <a href="javascript:Editor.undo();">Undo</a>
     <a href="javascript:Editor.redo();">Redo</a>
-    <a href="javascript:Editor.clean();">Clean</a>
+    <a href="javascript:Editor.sweep();">Sweep</a>
     <a href="javascript:console.log(JSON.stringify(Editor.dom.innerHTML));">Logger</a>
     <br />
     <div contenteditable="true"></div>
     <script>
         class Editor {
-            // IOS Undo Redo
+            // File Range & Firefox Undo Range
             // IOS Copy BLob
             // Reduce Word Undo
             // Upload
@@ -63,10 +63,8 @@
             static css;
             static ver = 0;
             static rev = [];
-            static mod = true;
+            static tap = true;
             static box = [];
-            static actOld;
-            static actNew;
             static file(l) {
                 l.forEach(function (f) {
                     const reader = new FileReader();
@@ -78,7 +76,7 @@
                     reader.readAsDataURL(f);
                 });
             };
-            static copy(e) {
+            static pour(e) {
                 if (e) { e.preventDefault(); }
                 let txt = "";
                 if (e.dataTransfer?.types.includes("text/html")) {
@@ -119,26 +117,10 @@
                 sl.removeAllRanges();
                 sl.addRange(rg);
                 this.slide(rg);
-                this.final(e);
-            };
-            static save(e) {
-                if ([this.actOld, this.actNew].every(str => ["insertCompositionText", "deleteCompositionText", "insertFromComposition"].includes(str))) { return; }
-                if (!this.mod) { this.rev.splice(this.ver - 1); }
-                const child = Array.from(this.dom.childNodes);
-                const rgNow = this.range(e);
-                const rgAll = new Range();
-                rgAll.selectNodeContents(this.dom);
-                this.rev.push({
-                    startIndex: child.indexOf(rgNow.startContainer),
-                    startOffset: rgNow.startOffset,
-                    endIndex: child.indexOf(rgNow.endContainer),
-                    endOffset: rgNow.endOffset,
-                    dom: child.length ? rgAll.cloneContents() : rgAll.createContextualFragment("\n")
-                });
-                this.ver = this.rev.length;
-                this.mod = true;
+                this.save(e);
             };
             static dump(e) {
+                if (e) { e.preventDefault(); }
                 const use = this.rev[this.ver - 1];
                 if (!use) { return; }
                 this.dom.focus();
@@ -166,20 +148,39 @@
                 sl.removeAllRanges();
                 sl.addRange(rg);
                 this.slide(rg);
-                this.final(e);
+                this.save(e);
+            };
+            static save(e) {
+                if (e) { e.preventDefault(); }
+                this.dom.focus();
+                if (this.dom.innerText.slice(-1) !== "\n") { this.dom.appendChild(new Text("\n")); }
+                if (!this.tap && e?.inputType && !e.inputType.startsWith("history")) { this.rev.splice(this.ver); this.tap = true; }
+                if (!this.tap || (e?.inputType && ["insertCompositionText", "deleteCompositionText", "insertFromComposition"].includes(e.inputType))) { return; }
+                const child = Array.from(this.dom.childNodes);
+                const rgNow = this.range(e);
+                const rgAll = new Range();
+                rgAll.selectNodeContents(this.dom);
+                this.rev.push({
+                    startIndex: child.indexOf(rgNow.startContainer),
+                    startOffset: rgNow.startOffset,
+                    endIndex: child.indexOf(rgNow.endContainer),
+                    endOffset: rgNow.endOffset,
+                    dom: child.length ? rgAll.cloneContents() : rgAll.createContextualFragment("\n")
+                });
+                this.ver = this.rev.length;
+            };
+            static undo(e) {
+                if (e) { e.preventDefault(); }
+                if (this.ver < 2) { return; }
+                this.tap = false;
+                this.ver--;
+                this.dump(e);
             };
             static redo(e) {
                 if (e) { e.preventDefault(); }
                 if (this.ver === this.rev.length) { return; }
+                this.tap = false;
                 this.ver++;
-                this.dump(e);
-            };
-            static undo(e) {
-                if (e) { e.preventDefault(); }
-                if (this.mod) { this.save(e); }
-                if (this.ver < 2) { return; }
-                this.mod = false;
-                this.ver--;
                 this.dump(e);
             };
             static range(e) {
@@ -197,10 +198,6 @@
                 n.remove();
                 if (d > 0) { this.dom.scrollTop += d; }
             };
-            static final(e) {
-                if (this.dom.innerText.slice(-1) !== "\n") { this.dom.appendChild(new Text("\n")); }
-                this.dom.focus();
-            };
             static watch(s) {
                 this.dom = document.querySelector(s);
                 this.dom.setAttribute("translate", "no");
@@ -211,27 +208,13 @@
                 this.css.textHeight = rct.getClientRects()[0].height;
                 this.dom.removeChild(rct);
                 this.dom.addEventListener("beforeinput", e => {
-                    this.actNew = e.inputType;
                     if (e.inputType.startsWith("format") || (!e.inputType.startsWith("delete") && ![
                         "historyUndo", "historyRedo",
                         "insertLineBreak", "insertParagraph",
                         "insertText", "insertCompositionText", "insertFromComposition",
                         "insertFromDrop", "insertFromYank", "insertFromPaste", "insertFromPasteAsQuotation", "insertReplacementText",
                     ].includes(e.inputType))) { e.preventDefault(); return; }
-                    if (!e.inputType.startsWith("history")) {
-                        this.save(e);
-                    }
-                    else if (e.inputType === "historyUndo") {
-                        this.undo(e);
-                    }
-                    else if (e.inputType === "historyRedo") {
-                        this.redo(e);
-                    }
-                    if (["insertFromDrop", "insertFromYank", "insertFromPaste", "insertFromPasteAsQuotation", "insertReplacementText"].includes(e.inputType)) {
-                        this.copy(e);
-                    }
-                    else if (["insertLineBreak", "insertParagraph"].includes(e.inputType)) {
-                        e.preventDefault();
+                    if (["insertLineBreak", "insertParagraph"].includes(e.inputType)) {
                         const rg = this.range(e);
                         rg.deleteContents();
                         rg.insertNode(new Text("\n"));
@@ -240,37 +223,46 @@
                         sl.removeAllRanges();
                         sl.addRange(rg);
                         this.slide(rg);
-                        this.final(e);
+                        this.save(e);
                     }
-                    this.actOld = e.inputType;
+                    else if (["insertFromDrop", "insertFromYank", "insertFromPaste", "insertFromPasteAsQuotation", "insertReplacementText"].includes(e.inputType)) {
+                        this.pour(e);
+                    }
+                    else if (e.inputType === "historyUndo") {
+                        this.undo(e);
+                    }
+                    else if (e.inputType === "historyRedo") {
+                        this.redo(e);
+                    }
                 }, false);
                 this.dom.addEventListener('input', e => {
-                    this.final(e);
+                    this.save(e);
                 }, false);
                 this.dom.addEventListener('compositionend', e => {
-                    this.actOld = "endComposition";
-                }, false);
-                this.dom.addEventListener('keydown', e => {
-                    e.stopImmediatePropagation();
-                    if ((e.ctrlKey || e.metaKey) && ((e.shiftKey && e.keyCode === 90) || e.keyCode === 89)) { this.redo(e); }
-                    else if ((e.ctrlKey || e.metaKey) && e.keyCode === 90) { this.undo(e); }
+                    e.inputType = "endComposition";
+                    this.save(e);
                 }, false);
                 this.dom.addEventListener('drop', e => {
                     if (e.dataTransfer?.types?.length === 1 && e.dataTransfer.types[0] === "Files") {
-                        this.save(e);
-                        this.copy(e);
+                        e.inputType = "dropFiles";
+                        this.pour(e);
                     }
                 }, false);
                 ['dragenter', 'dragover', 'drop'].forEach(_ => {
                     window.addEventListener(_, e => e.preventDefault(), false);
                     this.dom.addEventListener(_, e => e.stopPropagation(), false);
                 });
-                this.final();
+                this.dom.addEventListener('keydown', e => {
+                    e.stopImmediatePropagation();
+                    if ((e.ctrlKey || e.metaKey) && ((e.shiftKey && e.keyCode === 90) || e.keyCode === 89)) { this.redo(e); }
+                    else if ((e.ctrlKey || e.metaKey) && e.keyCode === 90) { this.undo(e); }
+                }, false);
+                this.save();
             };
-            static clean() {
+            static sweep() {
                 this.ver = 0;
                 this.rev = [];
-                this.mod = true;
+                this.tap = true;
             };
         };
         Editor.watch("div[contenteditable='true']");
