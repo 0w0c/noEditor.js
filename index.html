@@ -20,7 +20,7 @@
             margin: 10px auto;
             padding: 10px;
             text-align: left;
-            vertical-align: text-bottom;
+            vertical-align: middle;
             line-height: 1.5;
             font-family: Arial, Microsoft Yahei;
             font-size: 14px;
@@ -40,6 +40,9 @@
 
         ._editor_file_pending {
             margin: 0 2px;
+            padding: 1px;
+            border: 1px dashed black;
+            box-sizing: border-box;
             vertical-align: inherit;
             opacity: 0.2;
         }
@@ -75,7 +78,22 @@
                     reader.readAsDataURL(f);
                 });
             };
-            static pour(e) {
+            static async item(f) {
+                const fid = (this.box.length + 1);
+                const cvs = document.createElement("canvas");
+                cvs.width = 150;
+                cvs.height = this.css.textHeight;
+                const ctx = cvs.getContext("2d");
+                ctx.font = this.css.font;
+                ctx.fillStyle = "black";
+                ctx.textBaseline = "top";
+                const alt = fid + " | " + f.name;
+                ctx.fillText((ctx.measureText(alt).width > cvs.width) ? (alt.slice(0, -3) + "...") : alt, 0, 0);
+                f.info = URL.createObjectURL(await new Promise(resolve => cvs.toBlob(resolve))) + "#" + fid; // URL.revokeObjectURL
+                this.box.push(f);
+                return f;
+            };
+            static async pour(e) {
                 if (e) { e.preventDefault(); }
                 let txt = "";
                 if (e.dataTransfer?.types.includes("text/html")) {
@@ -93,20 +111,20 @@
                     txt = e.dataTransfer.getData("text/plain");
                 }
                 else if (e.dataTransfer?.types.includes("Files")) {
-                    txt = Array.from(e.dataTransfer.items || []) //stackoverflow.com/questions/3590058
-                        .flatMap(i => (i.webkitGetAsEntry()?.isFile === false) ? [] : (i.getAsFile() || []))
-                        .sort((a, b) => new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' }).compare(a.name, b.name))
-                        .map(f => { this.box.push(f); return "\vdata:image/bmp;base64,Qk0eAAAAAAAAABoAAAAMAAAAAQABAAEAGAAAAP8A#" + this.box.length + "\v"; })
-                        .join("\n")
+                    txt = (await Promise.all(
+                        Array.from(e.dataTransfer.items || []) //stackoverflow.com/questions/3590058
+                            .flatMap(i => (i.webkitGetAsEntry()?.isFile === false) ? [] : (i.getAsFile() || []))
+                            .sort((a, b) => new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' }).compare(a.name, b.name))
+                            .map(async f => "\v" + (await this.item(f)).info + "\v"))
+                    ).join("\n")
                 }
-                txt = txt
+                const doc = new DocumentFragment();
+                doc.replaceChildren(new Range().createContextualFragment(await txt
                     .replace(/[\u00A0-\u9999<>\&\'\"\\]/gi, _ => "&#" + _.charCodeAt(0) + ";")
-                    .replace(/\v(data\:.*?(\#.*?))\v/gi, "<img src=\"$1\" alt=\" \[ -% \] $2 \" class=\"_editor_file_pending\" width=\"100\" height=\"" + this.css.textHeight + "\" />")
+                    .replace(/\v((?:data|blob)\:.*?(\#.*?))\v/gi, "<img src=\"$1\" alt=\" \[ -% \] $2 \" class=\"_editor_file_pending\" />")
                     .replace(/\v(.*?)\v/gi, "<img src=\"$1\" alt=\"\" />")
                     .replace(/\r\n|\r/g, "\n")
-                    .replace(/\n{3,}/g, "\n\n")
-                const doc = new DocumentFragment();
-                doc.replaceChildren(new Range().createContextualFragment(txt));
+                    .replace(/\n{3,}/g, "\n\n")));
                 const l = doc.lastChild;
                 const r = this.range(e);
                 r.rg.deleteContents();
@@ -206,7 +224,7 @@
                 this.dom.appendChild(rct);
                 this.css.textHeight = rct.getClientRects()[0].height;
                 this.dom.removeChild(rct);
-                this.dom.addEventListener("beforeinput", e => {
+                this.dom.addEventListener("beforeinput", async e => {
                     if (e.inputType.startsWith("format") || (!e.inputType.startsWith("delete") && ![
                         "historyUndo", "historyRedo",
                         "insertLineBreak", "insertParagraph",
@@ -224,7 +242,7 @@
                         this.save(e);
                     }
                     else if (["insertFromDrop", "insertFromYank", "insertFromPaste", "insertFromPasteAsQuotation", "insertReplacementText"].includes(e.inputType)) {
-                        this.pour(e);
+                        await this.pour(e);
                     }
                     else if (e.inputType === "historyUndo") {
                         this.undo(e);
@@ -233,24 +251,24 @@
                         this.redo(e);
                     }
                 }, false);
-                this.dom.addEventListener('input', e => {
+                this.dom.addEventListener('input', async e => {
                     this.save(e);
                 }, false);
-                this.dom.addEventListener('compositionend', e => {
+                this.dom.addEventListener('compositionend', async e => {
                     e.inputType = "endComposition";
                     this.save(e);
                 }, false);
-                this.dom.addEventListener('drop', e => {
+                this.dom.addEventListener('drop', async e => {
                     if (e.dataTransfer?.types?.length === 1 && e.dataTransfer.types[0] === "Files") {
                         e.inputType = "dropFiles";
-                        this.pour(e);
+                        await this.pour(e);
                     }
                 }, false);
                 ['dragenter', 'dragover', 'drop'].forEach(_ => {
-                    window.addEventListener(_, e => e.preventDefault(), false);
-                    this.dom.addEventListener(_, e => e.stopPropagation(), false);
+                    window.addEventListener(_, async e => e.preventDefault(), false);
+                    this.dom.addEventListener(_, async e => e.stopPropagation(), false);
                 });
-                this.dom.addEventListener('keydown', e => {
+                this.dom.addEventListener('keydown', async e => {
                     e.stopImmediatePropagation();
                     if ((e.ctrlKey || e.metaKey) && ((e.shiftKey && e.keyCode === 90) || e.keyCode === 89)) { this.redo(e); }
                     else if ((e.ctrlKey || e.metaKey) && e.keyCode === 90) { this.undo(e); }
