@@ -53,7 +53,8 @@
     <a href="javascript:Editor.undo();">Undo</a>
     <a href="javascript:Editor.redo();">Redo</a>
     <a href="javascript:Editor.sweep();">Sweep</a>
-    <a href="javascript:console.log(JSON.stringify(Editor.dom.innerHTML));">Logger</a>
+    <a href="javascript:;"
+        onclick="Editor.dom.innerText=Editor.dom.innerHTML.replace(/&/g, '&amp;').replace( />/g,'&gt;').replace(/</g, '&lt;' )">Logger</a>
     <br />
     <div contenteditable="true"></div>
     <script>
@@ -67,19 +68,9 @@
             static rev = [];
             static tap = true;
             static box = [];
-            static file(l) {
-                l.forEach(function (f) {
-                    const reader = new FileReader();
-                    reader.onload = function (e) {
-                        f.b64 = e.target.result;
-                        //console.log(e.target.result);
-                        console.log(f);
-                    };
-                    reader.readAsDataURL(f);
-                });
-            };
             static async item(f) {
-                const fid = (this.box.length + 1);
+                this.box.push(f);
+                const fid = this.box.length;
                 const cvs = document.createElement("canvas");
                 cvs.width = 150;
                 cvs.height = this.css.textHeight;
@@ -87,11 +78,20 @@
                 ctx.font = this.css.font;
                 ctx.fillStyle = "black";
                 ctx.textBaseline = "top";
-                const alt = fid + " | " + f.name;
-                ctx.fillText((ctx.measureText(alt).width > cvs.width) ? (alt.slice(0, -3) + "...") : alt, 0, 0);
-                f.info = URL.createObjectURL(await new Promise(resolve => cvs.toBlob(resolve))) + "#" + fid; // URL.revokeObjectURL
-                this.box.push(f);
-                return f;
+                let tag = f.name;
+                if (ctx.measureText(tag).width > cvs.width) {
+                    const max = cvs.width - ctx.measureText("...").width;
+                    let bsl = 0;
+                    let bsr = tag.length;
+                    while (bsl <= bsr) {
+                        const mid = Math.floor((bsl + bsr) / 2);
+                        if (ctx.measureText(tag.slice(0, mid)).width > max) { bsr = mid - 1; }
+                        else { bsl = mid + 1; }
+                    }
+                    tag = tag.slice(0, bsl) + "...";
+                }
+                ctx.fillText(tag, 0, 0);
+                return URL.createObjectURL(await new Promise(resolve => cvs.toBlob(resolve))) + "#" + fid; // URL.revokeObjectURL
             };
             static async pour(e) {
                 if (e) { e.preventDefault(); }
@@ -115,7 +115,7 @@
                         Array.from(e.dataTransfer.items || []) //stackoverflow.com/questions/3590058
                             .flatMap(i => (i.webkitGetAsEntry()?.isFile === false) ? [] : (i.getAsFile() || []))
                             .sort((a, b) => new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' }).compare(a.name, b.name))
-                            .map(async f => "\v" + (await this.item(f)).info + "\v"))
+                            .map(async f => "\v" + await this.item(f) + "\v"))
                     ).join("\n")
                 }
                 const doc = new DocumentFragment();
