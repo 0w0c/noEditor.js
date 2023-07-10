@@ -59,7 +59,7 @@
     <div contenteditable="true"></div>
     <script>
         class Editor {
-            // IOS Promise
+            // IOS Prev \n
             // Reduce Word Undo
             // Picker Upload
             static dom;
@@ -229,6 +229,7 @@
                 this.dom.setAttribute("spellcheck", "false");
                 this.css = window.getComputedStyle(this.dom);
                 const rct = document.createElement("span");
+                rct.innerText = "\u200D";
                 this.dom.appendChild(rct);
                 this.css.textHeight = rct.getClientRects()[0].height;
                 this.dom.removeChild(rct);
