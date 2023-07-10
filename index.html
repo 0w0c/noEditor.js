@@ -91,7 +91,7 @@
                     tag = tag.slice(0, bsr) + "...";
                 }
                 ctx.fillText(tag, 0, cvs.height / 2);
-                return URL.createObjectURL(await new Promise(function (r) { return cvs.toBlob(r); })) + "#" + fid; // URL.revokeObjectURL
+                return URL.createObjectURL(await new Promise(r => cvs.toBlob(r))) + "#" + fid; // URL.revokeObjectURL
             };
             static async pour(e) {
                 if (e) { e.preventDefault(); }
