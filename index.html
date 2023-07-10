@@ -34,16 +34,16 @@
         }
 
         div[contenteditable="true"] img {
-            max-width: 100%;
             cursor: pointer;
+            max-width: 100%;
         }
 
         ._editor_file_pending {
             margin: 0 2px;
             padding: 1px;
-            border: 1px dashed black;
-            box-sizing: border-box;
-            vertical-align: inherit;
+            outline: 1px dashed black;
+            outline-offset: -1px;
+            vertical-align: middle;
             opacity: 0.2;
         }
     </style>
@@ -59,8 +59,8 @@
     <div contenteditable="true"></div>
     <script>
         class Editor {
+            // IOS Promise
             // Reduce Word Undo
-            // Base64 DataURL
             // Picker Upload
             static dom;
             static css;
@@ -77,8 +77,8 @@
                 const ctx = cvs.getContext("2d");
                 ctx.font = this.css.font;
                 ctx.fillStyle = "black";
-                ctx.textBaseline = "top";
-                let tag = f.name;
+                ctx.textBaseline = "middle";
+                let tag = f.name || "#" + fid;
                 if (ctx.measureText(tag).width > cvs.width) {
                     const max = cvs.width - ctx.measureText("...").width;
                     let bsl = 0;
@@ -88,10 +88,10 @@
                         if (ctx.measureText(tag.slice(0, mid)).width > max) { bsr = mid - 1; }
                         else { bsl = mid + 1; }
                     }
-                    tag = tag.slice(0, bsl) + "...";
+                    tag = tag.slice(0, bsr) + "...";
                 }
-                ctx.fillText(tag, 0, 0);
-                return URL.createObjectURL(await new Promise(resolve => cvs.toBlob(resolve))) + "#" + fid; // URL.revokeObjectURL
+                ctx.fillText(tag, 0, cvs.height / 2);
+                return URL.createObjectURL(await new Promise(function (r) { return cvs.toBlob(r); })) + "#" + fid; // URL.revokeObjectURL
             };
             static async pour(e) {
                 if (e) { e.preventDefault(); }
@@ -119,9 +119,17 @@
                     ).join("\n")
                 }
                 const doc = new DocumentFragment();
+                const reg = new RegExp(/\v(?:blob|data):[^#]*?\v/gi);
+                const pre = await Promise.all((txt.match(reg) || []).map(async m => {
+                    const u = m.slice(1, m.length - 1);
+                    const i = await fetch(u).then(r => r.blob()).then(b => new File([b], "")).then(f => this.item(f));
+                    if (u.startsWith("blob:")) { URL.revokeObjectURL(u); }
+                    return i;
+                }));
                 doc.replaceChildren(new Range().createContextualFragment(await txt
                     .replace(/[\u00A0-\u9999<>\&\'\"\\]/gi, _ => "&#" + _.charCodeAt(0) + ";")
-                    .replace(/\v(blob\:.*?(\#.*?))\v/gi, "<img class=\"_editor_file_pending\" src=\"$1\" alt=\"\" />")
+                    .replace(reg, m => "<img class=\"_editor_file_pending\" src=\"" + pre.shift() + "\" alt=\"\" />")
+                    .replace(/\v(blob:.*?(#.*?))\v/gi, "<img class=\"_editor_file_pending\" src=\"$1\" alt=\"\" />")
                     .replace(/\v(.*?)\v/gi, "<img src=\"$1\" alt=\"\" />")
                     .replace(/\r\n|\r/g, "\n")
                     .replace(/\n{3,}/g, "\n\n")));
