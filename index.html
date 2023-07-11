@@ -106,15 +106,14 @@
                         .replace(/(\vblob:[^#]+?\v)(?=\vblob:)/gi, "$1\n")
                         .replace(/^[^\S\v]+/, tmp.match(/^[^\S\n]*(\n*)/)[1])
                         .replace(/[^\S\v]+$/, tmp.match(/(\n*)[^\S\n]*$/)[1])
-                    /*
                     await Promise.all(
                         Array.from(new Set(txt.match(/\v(?:blob|data):[^#]+?\v/gi) || [])).map(async m => {
                             const u = m.slice(1, m.length - 1);
-                            txt = txt.replaceAll(u, await fetch(u).then(r => r.blob()).then(b => new File([b], "")).then(f => this.item(f)));
+                            const i = await fetch(u).then(r => r.blob()).then(b => new File([b], "")).then(f => this.item(f));
+                            txt = txt.replaceAll(u, i);
                             if (u.startsWith("blob:")) { URL.revokeObjectURL(u); }
                         })
                     );
-                    */
                 }
                 else if (e.dataTransfer?.types.includes("text/plain")) {
                     txt = e.dataTransfer.getData("text/plain");
