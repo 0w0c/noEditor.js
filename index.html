@@ -103,9 +103,10 @@
                         .replace(/(\<(?:option|td|th)(?:\>|\s+.*?\>))/gi, " $1")
                         .replace(/(\<(?:address|article|aside|blockquote|br|caption|dd|details|dialog|div|dl|dt|fieldset|figcaption|figure|footer|form|h\d|header|hr|iframe|legend|li|main|nav|ol|p|pre|ruby|section|summary|table|tbody|tfoot|thead|tr|ul)(?:\>|\s+.*?\>))/gi, "\n$1")
                     ).textContent
-                        //.replace(/(\vblob:[^#]*?\v)(\vblob:[^#]*?\v)/gi, "$1\n$2")
+                        .replace(/(\vblob:[^#]*?\v)(\vblob:[^#]*?\v)/gi, "$1\n$2")
                         .replace(/^[^\S\v]+/, tmp.match(/^[^\S\n]*(\n*)/)[1])
                         .replace(/[^\S\v]+$/, tmp.match(/(\n*)[^\S\n]*$/)[1])
+                    /*
                     await Promise.all(
                         Array.from(new Set(txt.match(/\v(?:blob|data):[^#]*?\v/gi) || [])).map(async m => {
                             const u = m.slice(1, m.length - 1);
@@ -113,6 +114,7 @@
                             if (u.startsWith("blob:")) { URL.revokeObjectURL(u); }
                         })
                     );
+                    */
                 }
                 else if (e.dataTransfer?.types.includes("text/plain")) {
                     txt = e.dataTransfer.getData("text/plain");
