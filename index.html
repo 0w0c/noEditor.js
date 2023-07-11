@@ -59,8 +59,8 @@
     <div contenteditable="true"></div>
     <script>
         class Editor {
-            // Reduce Word Undo
-            // Picker Upload
+            // Save Before | Reduce Word Undo
+            // Picker | Upload
             static dom;
             static css;
             static ver = 0;
@@ -279,8 +279,8 @@
                 });
                 this.dom.addEventListener('keydown', async e => {
                     e.stopImmediatePropagation();
-                    if ((e.ctrlKey || e.metaKey) && ((e.shiftKey && e.keyCode === 90) || e.keyCode === 89)) { this.redo(e); }
-                    else if ((e.ctrlKey || e.metaKey) && e.keyCode === 90) { this.undo(e); }
+                    if ((e.ctrlKey || e.metaKey) && ((e.shiftKey && e.code === "KeyZ") || e.code === "KeyY")) { this.redo(e); }
+                    else if ((e.ctrlKey || e.metaKey) && e.code === "KeyZ") { this.undo(e); }
                 }, false);
                 this.save(window.event);
             };
