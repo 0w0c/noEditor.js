@@ -99,8 +99,10 @@
                 let txt = "";
                 if (e?.dataTransfer?.types.includes("text/html")) {
                     const tmp = e.dataTransfer.getData("text");
+                    console.log(e.dataTransfer.getData("text/html"))
                     txt = new Range().createContextualFragment(e.dataTransfer.getData("text/html")
                         .replace(/\v/g, "\n\t")
+                        .replace(/>\s+</g, "> <")
                         .replace(/\<img\s+.*?src=\"([^"]+)\".*?\>/gi, "\v$1\v")
                         .replace(/(\<(?:option|td|th)(?:\>|\s+.*?\>))/gi, " $1")
                         .replace(/(\<(?:address|article|aside|blockquote|br|caption|dd|details|dialog|div|dl|dt|fieldset|figcaption|figure|footer|form|h\d|header|hr|iframe|legend|li|main|nav|ol|p|pre|ruby|section|summary|table|tbody|tfoot|thead|tr|ul)(?:\>|\s+.*?\>))/gi, "\n$1")
