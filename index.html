@@ -59,7 +59,7 @@
     <div contenteditable="true"></div>
     <script>
         class Editor {
-            // Backspace"deleteContentBackward", Delete"deleteContentForward"
+            // Observe img delete
             // Picker | Upload
             static dom;
             static css;
@@ -94,7 +94,7 @@
                 return URL.createObjectURL(await new Promise(r => cvs.toBlob(r))) + "#" + fid; // URL.revokeObjectURL
             };
             static async pour(e) {
-                e?.preventDefault();
+                "preventDefault" in (e ?? {}) && e.preventDefault();
                 (e ??= {}).inputType ??= "insertFromPaste";
                 this.prep(e);
                 let txt = "";
@@ -136,7 +136,8 @@
                     .replace(/\v(blob:.*?(#.*?))\v/gi, "<img class=\"_editor_file_pending\" src=\"$1\" alt=\"\" />")
                     .replace(/\v(.*?)\v/gi, "<img src=\"$1\" alt=\"\" />")
                     .replace(/\r\n|\r/g, "\n")
-                    .replace(/\n{3,}/g, "\n\n")));
+                    .replace(/\n{3,}/g, "\n\n")
+                ));
                 const l = doc.lastChild;
                 const r = this.range(e);
                 r.rg.deleteContents();
@@ -147,7 +148,7 @@
                 r.sl.addRange(r.rg);
             };
             static dump(e) {
-                e?.preventDefault();
+                "preventDefault" in (e ?? {}) && e.preventDefault();
                 const use = this.rev[this.ver - 1];
                 if (!use) { return; }
                 this.dom.replaceChildren(use.dom.cloneNode(true));
@@ -175,7 +176,7 @@
                 r.sl.addRange(r.rg);
             };
             static undo(e) {
-                e?.preventDefault();
+                "preventDefault" in (e ?? {}) && e.preventDefault();
                 (e ??= {}).inputType ??= "historyUndo";
                 this.prep(e);
                 if (this.ver < 2) { return; }
@@ -183,7 +184,7 @@
                 this.dump(e);
             };
             static redo(e) {
-                e?.preventDefault();
+                "preventDefault" in (e ?? {}) && e.preventDefault();
                 (e ??= {}).inputType ??= "historyRedo";
                 this.prep(e);
                 if (this.ver === this.rev.length) { return; }
@@ -191,7 +192,7 @@
                 this.dump(e);
             };
             static nlbr(e) {
-                e?.preventDefault();
+                "preventDefault" in (e ?? {}) && e.preventDefault();
                 (e ??= {}).inputType ??= "insertLineBreak";
                 this.prep(e);
                 const r = this.range(e);
@@ -205,7 +206,7 @@
             static prep(e) {
                 this.dom.focus();
                 if (this.dom.innerText.slice(-1) !== "\n") { this.dom.appendChild(new Text("\n")); }
-                if (!["skip", "insertCompositionText", "insertFromComposition", "deleteCompositionText"].includes(this.act)) {
+                if (!["?", "insertCompositionText", "insertFromComposition", "deleteCompositionText"].includes(this.act)) {
                     if (!this.act.startsWith("history")) {
                         const child = Array.from(this.dom.childNodes);
                         const rgNow = this.range(e).rg;
@@ -252,6 +253,9 @@
                 this.dom.appendChild(rct);
                 this.css.textHeight = rct.getClientRects()[0].height;
                 this.dom.removeChild(rct);
+                new MutationObserver(function (e) {
+                    //if (e[0].removedNodes) { console.log("removed!"); }
+                }).observe(this.dom, { childList: true, attributes: true });
                 this.dom.addEventListener("beforeinput", async e => {
                     if (e.inputType.startsWith("format") || (!e.inputType.startsWith("delete") && ![
                         "historyUndo", "historyRedo",
@@ -286,10 +290,15 @@
                     e.stopImmediatePropagation();
                     if ((e.ctrlKey || e.metaKey) && ((e.shiftKey && e.code === "KeyZ") || e.code === "KeyY")) { this.redo(e); }
                     else if ((e.ctrlKey || e.metaKey) && e.code === "KeyZ") { this.undo(e); }
-                    else if ((this.act === "insertText") && (
-                        (this.key === "Space" && e.code === "Space") ||
-                        [this.key, e.code].every(k => ["Key", "Digit", "Numpad"].some(w => k.startsWith(w)))
-                    )) { this.act = "skip"; }
+                    else if (
+                        ((this.act === "insertText") && (
+                            [this.key, e.code].every(k => k === "Space") ||
+                            [this.key, e.code].every(k => ["Key", "Digit", "Numpad"].some(w => k.startsWith(w)))
+                        )) ||
+                        (["deleteContentBackward", "deleteContentForward"].includes(this.act) &&
+                            [this.key, e.code].every(k => ["Backspace", "Delete"].includes(k))
+                        )
+                    ) { this.act = "?"; }
                     this.key = e.code;
                 }, false);
             };
