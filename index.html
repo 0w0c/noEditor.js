@@ -59,7 +59,6 @@
     <div contenteditable="true"></div>
     <script>
         class Editor {
-            // Key input, drop file, input, undo?
             // Picker | Upload
             static dom;
             static css;
@@ -271,6 +270,7 @@
                         this.prep(e);
                         await this.pour(e);
                     }
+                    this.key = "drop";
                 }, false);
                 ['dragenter', 'dragover', 'drop'].forEach(_ => {
                     window.addEventListener(_, async e => e.preventDefault(), false);
