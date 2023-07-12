@@ -99,7 +99,6 @@
                 let txt = "";
                 if (e?.dataTransfer?.types.includes("text/html")) {
                     const tmp = e.dataTransfer.getData("text");
-                    console.log(e.dataTransfer.getData("text/html"))
                     txt = new Range().createContextualFragment(e.dataTransfer.getData("text/html")
                         .replace(/\v/g, "\n\t")
                         .replace(/>\s+</g, "> <")
