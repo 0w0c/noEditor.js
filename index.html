@@ -234,7 +234,7 @@
                 return { sl, rg: sl.rangeCount ? sl.getRangeAt(0) : new Range() }
             };
             static slide(r) {
-                const n = new Text("\u200D");
+                const n = new Text("\u200B");
                 r = r.cloneRange();
                 r.insertNode(n);
                 const d = r.getBoundingClientRect().bottom - (this.dom.getBoundingClientRect().top + this.dom.clientTop + this.dom.clientHeight - parseInt(this.css.paddingBottom));
@@ -247,7 +247,7 @@
                 this.dom.setAttribute("spellcheck", "false");
                 this.css = window.getComputedStyle(this.dom);
                 const rct = document.createElement("span");
-                rct.innerText = "\u200D";
+                rct.innerText = "\u200B";
                 this.dom.appendChild(rct);
                 this.css.textHeight = rct.getClientRects()[0].height;
                 this.dom.removeChild(rct);
