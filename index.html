@@ -59,6 +59,7 @@
     <div contenteditable="true"></div>
     <script>
         class Editor {
+            // Backspace"deleteContentBackward", Delete"deleteContentForward"
             // Picker | Upload
             static dom;
             static css;
@@ -285,10 +286,11 @@
                     e.stopImmediatePropagation();
                     if ((e.ctrlKey || e.metaKey) && ((e.shiftKey && e.code === "KeyZ") || e.code === "KeyY")) { this.redo(e); }
                     else if ((e.ctrlKey || e.metaKey) && e.code === "KeyZ") { this.undo(e); }
-                    else {
-                        if ((this.act === "insertText") && [this.key, e.code].every(k => ["Key", "Digit", "Numpad"].some(w => k.startsWith(w)))) { this.act = "skip"; }
-                        this.key = e.code;
-                    }
+                    else if ((this.act === "insertText") && (
+                        (this.key === "Space" && e.code === "Space") ||
+                        [this.key, e.code].every(k => ["Key", "Digit", "Numpad"].some(w => k.startsWith(w)))
+                    )) { this.act = "skip"; }
+                    this.key = e.code;
                 }, false);
             };
             static sweep() {
