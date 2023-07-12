@@ -93,9 +93,11 @@
                 return URL.createObjectURL(await new Promise(r => cvs.toBlob(r))) + "#" + fid; // URL.revokeObjectURL
             };
             static async pour(e) {
-                if (e) { e.preventDefault(); }
+                e?.preventDefault();
+                (e ??= {}).inputType ??= "insertFromPaste";
+                this.prep(e);
                 let txt = "";
-                if (e.dataTransfer?.types.includes("text/html")) {
+                if (e?.dataTransfer?.types.includes("text/html")) {
                     const tmp = e.dataTransfer.getData("text");
                     txt = new Range().createContextualFragment(e.dataTransfer.getData("text/html")
                         .replace(/\v/g, "\n\t")
@@ -115,10 +117,10 @@
                         })
                     );
                 }
-                else if (e.dataTransfer?.types.includes("text/plain")) {
+                else if (e?.dataTransfer?.types.includes("text/plain")) {
                     txt = e.dataTransfer.getData("text/plain");
                 }
-                else if (e.dataTransfer?.types.includes("Files")) {
+                else if (e?.dataTransfer?.types.includes("Files")) {
                     txt = (await Promise.all(
                         Array.from(e.dataTransfer.items || []) //stackoverflow.com/questions/3590058
                             .flatMap(i => (i.webkitGetAsEntry()?.isFile === false) ? [] : (i.getAsFile() || []))
@@ -143,7 +145,7 @@
                 r.sl.addRange(r.rg);
             };
             static dump(e) {
-                if (e) { e.preventDefault(); }
+                e?.preventDefault();
                 const use = this.rev[this.ver - 1];
                 if (!use) { return; }
                 this.dom.replaceChildren(use.dom.cloneNode(true));
@@ -171,21 +173,37 @@
                 r.sl.addRange(r.rg);
             };
             static undo(e) {
-                if (e) { e.preventDefault(); }
+                e?.preventDefault();
+                (e ??= {}).inputType ??= "historyUndo";
+                this.prep(e);
                 if (this.ver < 2) { return; }
                 this.ver--;
                 this.dump(e);
             };
             static redo(e) {
-                if (e) { e.preventDefault(); }
+                e?.preventDefault();
+                (e ??= {}).inputType ??= "historyRedo";
+                this.prep(e);
                 if (this.ver === this.rev.length) { return; }
                 this.ver++;
                 this.dump(e);
             };
+            static nlbr(e) {
+                e?.preventDefault();
+                (e ??= {}).inputType ??= "insertLineBreak";
+                this.prep(e);
+                const r = this.range(e);
+                r.rg.deleteContents();
+                r.rg.insertNode(new Text("\n"));
+                r.rg.collapse(false);
+                this.slide(r.rg);
+                r.sl.removeAllRanges();
+                r.sl.addRange(r.rg);
+            };
             static prep(e) {
                 this.dom.focus();
                 if (this.dom.innerText.slice(-1) !== "\n") { this.dom.appendChild(new Text("\n")); }
-                if (!["skip", "insertCompositionText", "deleteCompositionText", "insertFromComposition"].includes(this.act)) {
+                if (!["skip", "insertCompositionText", "insertFromComposition", "deleteCompositionText"].includes(this.act)) {
                     if (!this.act.startsWith("history")) {
                         const child = Array.from(this.dom.childNodes);
                         const rgNow = this.range(e).rg;
@@ -200,15 +218,15 @@
                         });
                         this.ver = this.rev.length;
                     }
-                    else if (!e.inputType.startsWith("history")) {
+                    else if (e?.inputType && !e.inputType.startsWith("history")) {
                         this.rev.splice(this.ver);
                     }
                 }
-                this.act = e.inputType;
+                this.act = e?.inputType || "";
             };
             static range(e) {
                 const sl = document.getSelection();
-                if (e && e.clientX && e.clientY) {
+                if (e?.clientX && e?.clientY) {
                     if (document.caretPositionFromPoint) { return { sl, rg: document.caretPositionFromPoint(e.clientX, e.clientY) } }
                     if (document.caretRangeFromPoint) { return { sl, rg: document.caretRangeFromPoint(e.clientX, e.clientY) } }
                 }
@@ -239,38 +257,24 @@
                         "insertText", "insertCompositionText", "insertFromComposition",
                         "insertFromDrop", "insertFromYank", "insertFromPaste", "insertFromPasteAsQuotation", "insertReplacementText",
                     ].includes(e.inputType))) { e.preventDefault(); return; }
-                    this.prep(e);
-                    if (["insertLineBreak", "insertParagraph"].includes(e.inputType)) {
-                        e.preventDefault();
-                        const r = this.range(e);
-                        r.rg.deleteContents();
-                        r.rg.insertNode(new Text("\n"));
-                        r.rg.collapse(false);
-                        this.slide(r.rg);
-                        r.sl.removeAllRanges();
-                        r.sl.addRange(r.rg);
-                    }
-                    else if (["insertFromDrop", "insertFromYank", "insertFromPaste", "insertFromPasteAsQuotation", "insertReplacementText"].includes(e.inputType)) {
-                        await this.pour(e);
-                    }
-                    else if (e.inputType === "historyUndo") {
-                        this.undo(e);
-                    }
-                    else if (e.inputType === "historyRedo") {
-                        this.redo(e);
-                    }
+                    if ([
+                        "insertFromDrop", "insertFromYank", "insertFromPaste", "insertFromPasteAsQuotation", "insertReplacementText"
+                    ].includes(e.inputType)) { await this.pour(e); }
+                    else if (["insertLineBreak", "insertParagraph"].includes(e.inputType)) { this.nlbr(e); }
+                    else if (e.inputType === "historyUndo") { this.undo(e); }
+                    else if (e.inputType === "historyRedo") { this.redo(e); }
+                    else { this.prep(e); }
                 }, false);
                 this.dom.addEventListener('compositionend', async e => {
-                    e.inputType = "endComposition"
+                    e.inputType = "insertCompositionEnd";
                     this.prep(e);
                 }, false);
                 this.dom.addEventListener('drop', async e => {
                     if (e.dataTransfer?.types?.length === 1 && e.dataTransfer.types[0] === "Files") {
-                        e.inputType = "dropFiles";
-                        this.prep(e);
+                        e.inputType = "insertFromDrop";
                         await this.pour(e);
                     }
-                    this.key = "drop";
+                    this.key = "Drop";
                 }, false);
                 ['dragenter', 'dragover', 'drop'].forEach(_ => {
                     window.addEventListener(_, async e => e.preventDefault(), false);
@@ -279,9 +283,9 @@
                 this.dom.addEventListener('keydown', async e => {
                     e.stopImmediatePropagation();
                     if ((e.ctrlKey || e.metaKey) && ((e.shiftKey && e.code === "KeyZ") || e.code === "KeyY")) { this.redo(e); }
-                    else if ((e.ctrlKey || e.metaKey) && e.code === "KeyZ") { e.inputType = "historyUndo"; this.prep(e); this.undo(e); }
+                    else if ((e.ctrlKey || e.metaKey) && e.code === "KeyZ") { this.undo(e); }
                     else {
-                        if ([this.key, e.code].every(k => ["Key", "Digit", "Numpad"].some(w => k.startsWith(w)))) { this.act = "skip"; }
+                        if ((this.act === "insertText") && [this.key, e.code].every(k => ["Key", "Digit", "Numpad"].some(w => k.startsWith(w)))) { this.act = "skip"; }
                         this.key = e.code;
                     }
                 }, false);
