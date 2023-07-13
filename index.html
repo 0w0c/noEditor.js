@@ -59,15 +59,16 @@
     <div contenteditable="true"></div>
     <script>
         class Editor {
-            // Observe img delete
+            // BackSpace save issue
             // Picker | Upload
             static dom;
             static css;
             static ver = 0;
             static rev = [];
-            static act = "";
-            static key = "";
             static box = [];
+            static _act = "";
+            static _key = "";
+            static _ctn = null;
             static async item(f) {
                 this.box.push(f);
                 const fid = this.box.length;
@@ -102,7 +103,7 @@
                     const tmp = e.dataTransfer.getData("text");
                     txt = new Range().createContextualFragment(e.dataTransfer.getData("text/html")
                         .replace(/\v/g, "\n\t")
-                        .replace(/>\s+</g, "> <")
+                        .replace(/>[^\S\n]+</g, "> <")
                         .replace(/\<img\s+.*?src=\"([^"]+)\".*?\>/gi, "\v$1\v")
                         .replace(/(\<(?:option|td|th)(?:\>|\s+.*?\>))/gi, " $1")
                         .replace(/(\<(?:address|article|aside|blockquote|br|caption|dd|details|dialog|div|dl|dt|fieldset|figcaption|figure|footer|form|h\d|header|hr|iframe|legend|li|main|nav|ol|p|pre|ruby|section|summary|table|tbody|tfoot|thead|tr|ul)(?:\>|\s+.*?\>))/gi, "\n$1")
@@ -146,9 +147,9 @@
                 this.slide(r.rg);
                 r.sl.removeAllRanges();
                 r.sl.addRange(r.rg);
+                this.done(e);
             };
             static dump(e) {
-                "preventDefault" in (e ?? {}) && e.preventDefault();
                 const use = this.rev[this.ver - 1];
                 if (!use) { return; }
                 this.dom.replaceChildren(use.dom.cloneNode(true));
@@ -182,6 +183,7 @@
                 if (this.ver < 2) { return; }
                 this.ver--;
                 this.dump(e);
+                this.done(e);
             };
             static redo(e) {
                 "preventDefault" in (e ?? {}) && e.preventDefault();
@@ -190,6 +192,7 @@
                 if (this.ver === this.rev.length) { return; }
                 this.ver++;
                 this.dump(e);
+                this.done(e);
             };
             static nlbr(e) {
                 "preventDefault" in (e ?? {}) && e.preventDefault();
@@ -202,12 +205,19 @@
                 this.slide(r.rg);
                 r.sl.removeAllRanges();
                 r.sl.addRange(r.rg);
+                this.done(e);
             };
             static prep(e) {
                 this.dom.focus();
-                if (this.dom.innerText.slice(-1) !== "\n") { this.dom.appendChild(new Text("\n")); }
-                if (!["?", "insertCompositionText", "insertFromComposition", "deleteCompositionText"].includes(this.act)) {
-                    if (!this.act.startsWith("history")) {
+                if (
+                    !["?", "insertCompositionText", "insertFromComposition", "deleteCompositionText"].includes(this._act) &&
+                    !(
+                        this.dom.innerHTML === "\n" && this.rev.length > 0 &&
+                        this.rev[this.rev.length - 1].dom.childNodes.length === 1 &&
+                        this.rev[this.rev.length - 1].dom.firstChild.wholeText === "\n"
+                    )
+                ) {
+                    if (!this._act.startsWith("history")) {
                         const child = Array.from(this.dom.childNodes);
                         const rgNow = this.range(e).rg;
                         const rgAll = new Range();
@@ -225,7 +235,11 @@
                         this.rev.splice(this.ver);
                     }
                 }
-                this.act = e?.inputType || "";
+                this._act = e?.inputType || "";
+            };
+            static done(e) {
+                this._ctn = this.range(e).rg.commonAncestorContainer;
+                if (this.dom.innerText.slice(-1) !== "\n") { this.dom.appendChild(new Text("\n")); }
             };
             static range(e) {
                 const sl = document.getSelection();
@@ -245,17 +259,42 @@
             };
             static watch(s) {
                 this.dom = document.querySelector(s);
-                this.dom.setAttribute("translate", "no");
-                this.dom.setAttribute("spellcheck", "false");
-                this.css = window.getComputedStyle(this.dom);
-                const rct = document.createElement("span");
-                rct.innerText = "\u200B";
-                this.dom.appendChild(rct);
-                this.css.textHeight = rct.getClientRects()[0].height;
-                this.dom.removeChild(rct);
-                new MutationObserver(function (e) {
-                    //if (e[0].removedNodes) { console.log("removed!"); }
-                }).observe(this.dom, { childList: true, attributes: true });
+                this.dom.addEventListener('keydown', async e => {
+                    e.stopImmediatePropagation();
+                    const rg = this.range(e).rg;
+                    let key;
+                    if ((e.ctrlKey || e.metaKey) && ((e.shiftKey && e.code === "KeyZ") || e.code === "KeyY")) { this.redo(e); }
+                    else if ((e.ctrlKey || e.metaKey) && e.code === "KeyZ") { this.undo(e); }
+                    else if (this._ctn === rg.commonAncestorContainer && rg.startOffset === rg.endOffset) {
+                        if ((this._act === "insertText") && (
+                            [this._key, e.code].every(k => k === "Space") ||
+                            [this._key, e.code].every(k => ["Key", "Digit", "Numpad"].some(w => k.startsWith(w)) && k !== "NumpadEnter")
+                        )) { this._act = "?"; }
+                        else if (["insertLineBreak", "insertParagraph"].includes(this._act) &&
+                            [this._key, e.code].every(k => ["Enter", "NumpadEnter"].includes(k))
+                        ) { this._act = "?"; }
+                        else if (["deleteContentBackward", "deleteContentForward"].includes(this._act) &&
+                            [this._key, e.code].every(k => ["Backspace", "Delete"].includes(k))
+                        ) {
+                            if ((e.code === "Backspace" && (
+                                (rg.startContainer === this.dom &&
+                                    rg.startContainer.childNodes[rg.startOffset - 1]?.nodeName !== "#text"
+                                ) ||
+                                (rg.startContainer.nodeName === "#text" && (
+                                    (rg.startOffset > 0 && rg.startContainer.textContent[rg.startOffset - 1] === "\n") ||
+                                    (rg.startOffset === 0 && rg.startContainer.previousSibling?.textContent?.endsWith("\n"))
+                                ))
+                            )) || (e.code === "Delete" &&
+                                (rg.endContainer.nodeName === "#text" && (
+                                    //(rg.endOffset < rg.endContainer.length && rg.endContainer.textContent[rg.startOffset + 1] === "\n") || //???
+                                    (rg.endOffset === rg.endContainer.length && (rg.endContainer.nextSibling?.nodeName !== "#text" || rg.endContainer.nextSibling?.textContent.startsWith("\n")))
+                                ))
+                                )) { key = "Remove"; }
+                            else { this._act = "?"; }
+                        }
+                    }
+                    this._key = key || e.code;
+                }, false);
                 this.dom.addEventListener("beforeinput", async e => {
                     if (e.inputType.startsWith("format") || (!e.inputType.startsWith("delete") && ![
                         "historyUndo", "historyRedo",
@@ -271,42 +310,41 @@
                     else if (e.inputType === "historyRedo") { this.redo(e); }
                     else { this.prep(e); }
                 }, false);
+                this.dom.addEventListener("input", async e => {
+                    this.done(e);
+                }, false);
                 this.dom.addEventListener('compositionend', async e => {
                     e.inputType = "insertCompositionEnd";
                     this.prep(e);
+                    this.done(e);
                 }, false);
                 this.dom.addEventListener('drop', async e => {
                     if (e.dataTransfer?.types?.length === 1 && e.dataTransfer.types[0] === "Files") {
                         e.inputType = "insertFromDrop";
+                        this._key = "Drop";
                         await this.pour(e);
                     }
-                    this.key = "Drop";
                 }, false);
                 ['dragenter', 'dragover', 'drop'].forEach(_ => {
                     window.addEventListener(_, async e => e.preventDefault(), false);
                     this.dom.addEventListener(_, async e => e.stopPropagation(), false);
                 });
-                this.dom.addEventListener('keydown', async e => {
-                    e.stopImmediatePropagation();
-                    if ((e.ctrlKey || e.metaKey) && ((e.shiftKey && e.code === "KeyZ") || e.code === "KeyY")) { this.redo(e); }
-                    else if ((e.ctrlKey || e.metaKey) && e.code === "KeyZ") { this.undo(e); }
-                    else if (
-                        ((this.act === "insertText") && (
-                            [this.key, e.code].every(k => k === "Space") ||
-                            [this.key, e.code].every(k => ["Key", "Digit", "Numpad"].some(w => k.startsWith(w)))
-                        )) ||
-                        (["deleteContentBackward", "deleteContentForward"].includes(this.act) &&
-                            [this.key, e.code].every(k => ["Backspace", "Delete"].includes(k))
-                        )
-                    ) { this.act = "?"; }
-                    this.key = e.code;
-                }, false);
+                this.dom.setAttribute("translate", "no");
+                this.dom.setAttribute("spellcheck", "false");
+                this.css = window.getComputedStyle(this.dom);
+                const rct = document.createElement("span");
+                rct.innerText = "\u200B";
+                this.dom.appendChild(rct);
+                this.css.textHeight = rct.getClientRects()[0].height;
+                this.dom.removeChild(rct);
+                this.done(window.event);
             };
             static sweep() {
                 this.ver = 0;
                 this.rev = [];
-                this.act = "";
-                this.key = "";
+                this._act = "";
+                this._key = "";
+                this._ctn = null;
             };
         };
         Editor.watch("div[contenteditable='true']");
