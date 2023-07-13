@@ -59,7 +59,7 @@
     <div contenteditable="true"></div>
     <script>
         class Editor {
-            // BackSpace save issue
+            // Text Img Text Backspace
             // Picker | Upload
             static dom;
             static css;
@@ -218,6 +218,7 @@
                     )
                 ) {
                     if (!this._act.startsWith("history")) {
+                        console.log("save");
                         const child = Array.from(this.dom.childNodes);
                         const rgNow = this.range(e).rg;
                         const rgAll = new Range();
@@ -262,21 +263,19 @@
                 this.dom.addEventListener('keydown', async e => {
                     e.stopImmediatePropagation();
                     const rg = this.range(e).rg;
-                    let key;
                     if ((e.ctrlKey || e.metaKey) && ((e.shiftKey && e.code === "KeyZ") || e.code === "KeyY")) { this.redo(e); }
                     else if ((e.ctrlKey || e.metaKey) && e.code === "KeyZ") { this.undo(e); }
-                    else if (this._ctn === rg.commonAncestorContainer && rg.startOffset === rg.endOffset) {
-                        if ((this._act === "insertText") && (
+                    else if (this._ctn === rg.commonAncestorContainer && rg.startOffset === rg.endOffset && (
+                        ((this._act === "insertText") && (
                             [this._key, e.code].every(k => k === "Space") ||
                             [this._key, e.code].every(k => ["Key", "Digit", "Numpad"].some(w => k.startsWith(w)) && k !== "NumpadEnter")
-                        )) { this._act = "?"; }
-                        else if (["insertLineBreak", "insertParagraph"].includes(this._act) &&
+                        )) ||
+                        (["insertLineBreak", "insertParagraph"].includes(this._act) &&
                             [this._key, e.code].every(k => ["Enter", "NumpadEnter"].includes(k))
-                        ) { this._act = "?"; }
-                        else if (["deleteContentBackward", "deleteContentForward"].includes(this._act) &&
-                            [this._key, e.code].every(k => ["Backspace", "Delete"].includes(k))
-                        ) {
-                            if ((e.code === "Backspace" && (
+                        ) ||
+                        (["deleteContentBackward", "deleteContentForward"].includes(this._act) &&
+                            [this._key, e.code].every(k => ["Backspace", "Delete"].includes(k)) &&
+                            !(e.code === "Backspace" && (
                                 (rg.startContainer === this.dom &&
                                     rg.startContainer.childNodes[rg.startOffset - 1]?.nodeName !== "#text"
                                 ) ||
@@ -284,16 +283,14 @@
                                     (rg.startOffset > 0 && rg.startContainer.textContent[rg.startOffset - 1] === "\n") ||
                                     (rg.startOffset === 0 && rg.startContainer.previousSibling?.textContent?.endsWith("\n"))
                                 ))
-                            )) || (e.code === "Delete" &&
-                                (rg.endContainer.nodeName === "#text" && (
-                                    //(rg.endOffset < rg.endContainer.length && rg.endContainer.textContent[rg.startOffset + 1] === "\n") || //???
-                                    (rg.endOffset === rg.endContainer.length && (rg.endContainer.nextSibling?.nodeName !== "#text" || rg.endContainer.nextSibling?.textContent.startsWith("\n")))
-                                ))
-                                )) { key = "Remove"; }
-                            else { this._act = "?"; }
-                        }
-                    }
-                    this._key = key || e.code;
+                            )) &&
+                            !(e.code === "Delete" && rg.endContainer.nodeName === "#text" && (
+                                (rg.endOffset < rg.endContainer.length && rg.endContainer.textContent[rg.startOffset + 1] === "\n") ||
+                                (rg.endOffset === rg.endContainer.length && (rg.endContainer.nextSibling?.nodeName !== "#text" || rg.endContainer.nextSibling?.textContent.startsWith("\n")))
+                            ))
+                        )
+                    )) { this._act = "?"; }
+                    this._key = e.code // key || e.code;
                 }, false);
                 this.dom.addEventListener("beforeinput", async e => {
                     if (e.inputType.startsWith("format") || (!e.inputType.startsWith("delete") && ![
