@@ -59,12 +59,6 @@
     <div contenteditable="true"></div>
     <script>
         class Editor {
-            /* DEL remain letter
-            aaaaaaa
-            bbbbbbb
-            ccccccc
-            ddddddd
-            */
             // DEL at end issue
             // Picker | Upload
             static dom;
@@ -263,7 +257,6 @@
                 this.dom.addEventListener('keydown', async e => {
                     e.stopImmediatePropagation();
                     const rg = this.range(e).rg;
-                    console.log(this._rec["FileRemoved"]);
                     if ((e.ctrlKey || e.metaKey) && ((e.shiftKey && e.code === "KeyZ") || e.code === "KeyY")) { this.redo(e); }
                     else if ((e.ctrlKey || e.metaKey) && e.code === "KeyZ") { this.undo(e); }
                     else if (rg.startContainer === rg.endContainer && rg.startOffset === rg.endOffset && (
@@ -290,7 +283,7 @@
                                 ) && (this._rec["FileRemoved"] = true)) ||
                                 (e.code === "Delete" && (
                                     (rg.endContainer.nodeName === "#text" && (
-                                        (rg.endOffset < rg.endContainer.length && rg.endContainer.textContent[rg.startOffset + 1] === "\n") ||
+                                        (rg.endOffset < rg.endContainer.length - 1 && rg.endContainer.textContent[rg.endOffset] === "\n") ||
                                         (rg.endOffset === rg.endContainer.length && (
                                             rg.endContainer.nextSibling?.nodeName !== "#text" ||
                                             rg.endContainer.nextSibling?.textContent.startsWith("\n")
