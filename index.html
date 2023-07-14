@@ -218,7 +218,6 @@
                     )
                 ) {
                     if (!this._act.startsWith("history")) {
-                        console.log("save");
                         const child = Array.from(this.dom.childNodes);
                         const rgNow = this.range(e).rg;
                         const rgAll = new Range();
@@ -263,6 +262,10 @@
                 this.dom.addEventListener('keydown', async e => {
                     e.stopImmediatePropagation();
                     const rg = this.range(e).rg;
+                    try {
+                        console.log(rg.startContainer.previousSibling?.nodeName);
+                        console.log("----------")
+                    } catch (e) { }
                     if ((e.ctrlKey || e.metaKey) && ((e.shiftKey && e.code === "KeyZ") || e.code === "KeyY")) { this.redo(e); }
                     else if ((e.ctrlKey || e.metaKey) && e.code === "KeyZ") { this.undo(e); }
                     else if (this._ctn === rg.commonAncestorContainer && rg.startOffset === rg.endOffset && (
@@ -281,12 +284,18 @@
                                 ) ||
                                 (rg.startContainer.nodeName === "#text" && (
                                     (rg.startOffset > 0 && rg.startContainer.textContent[rg.startOffset - 1] === "\n") ||
-                                    (rg.startOffset === 0 && rg.startContainer.previousSibling?.textContent?.endsWith("\n"))
+                                    (rg.startOffset === 0 && (
+                                        rg.startContainer.previousSibling?.nodeName !== "#text" ||
+                                        rg.startContainer.previousSibling?.textContent?.endsWith("\n")
+                                    ))
                                 ))
                             )) &&
                             !(e.code === "Delete" && rg.endContainer.nodeName === "#text" && (
                                 (rg.endOffset < rg.endContainer.length && rg.endContainer.textContent[rg.startOffset + 1] === "\n") ||
-                                (rg.endOffset === rg.endContainer.length && (rg.endContainer.nextSibling?.nodeName !== "#text" || rg.endContainer.nextSibling?.textContent.startsWith("\n")))
+                                (rg.endOffset === rg.endContainer.length && (
+                                    rg.endContainer.nextSibling?.nodeName !== "#text" ||
+                                    rg.endContainer.nextSibling?.textContent.startsWith("\n")
+                                ))
                             ))
                         )
                     )) { this._act = "?"; }
