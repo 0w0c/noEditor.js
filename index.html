@@ -280,7 +280,7 @@
                                 ) && (this._rec["save"] = true)) ||
                                 (e.code === "Delete" && (
                                     (rg.endContainer.nodeName === "#text" && (
-                                        (rg.endOffset < rg.endContainer.length - 1 && rg.endContainer.textContent[rg.endOffset] === "\n") ||
+                                        (rg.endOffset < rg.endContainer.length && rg.endContainer.textContent[rg.endOffset] === "\n") ||
                                         (rg.endOffset === rg.endContainer.length && (
                                             rg.endContainer.nextSibling?.nodeName !== "#text" ||
                                             rg.endContainer.nextSibling?.textContent.startsWith("\n")
