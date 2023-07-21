@@ -50,6 +50,7 @@
 </head>
 
 <body>
+    <a href="javascript:Editor.pick();">Pick</a>
     <a href="javascript:Editor.undo();">Undo</a>
     <a href="javascript:Editor.redo();">Redo</a>
     <a href="javascript:Editor.sweep();">Sweep</a>
@@ -59,8 +60,6 @@
     <div contenteditable="true"></div>
     <script>
         class Editor {
-            // Service Worker
-            // Picker | Upload
             static dom;
             static css;
             static ver = 0;
@@ -69,6 +68,24 @@
             static _act = "";
             static _key = "";
             static _rec = {};
+            static async pick(e) {
+                var picker = document.querySelector('#picker');
+                if (!picker) {
+                    picker = document.createElement('input');
+                    picker.setAttribute('id', 'picker');
+                    picker.setAttribute('type', 'file');
+                    //picker.setAttribute('accept', 'image/*');
+                    picker.setAttribute('multiple', 'multiple');
+                    picker.setAttribute('hidden', 'hidden');
+                    document.body.appendChild(picker);
+                }
+                picker.click();
+                picker.onchange = async c => {
+                    const files = document.querySelector('#picker').files;
+                    if (!files.length) { return; }
+                    await this.pour({ "fileList": (await Promise.all(Array.from(files).map(async f => "\v" + await this.item(f) + "\v"))).join("\n") });
+                };
+            };
             static async item(f) {
                 this.box.push(f);
                 const fid = this.box.length;
@@ -99,7 +116,10 @@
                 (e ??= {}).inputType ??= "insertFromPaste";
                 this.prep(e);
                 let txt = "";
-                if (e?.dataTransfer?.types.includes("text/html")) {
+                if (e.fileList) {
+                    txt = e.fileList;
+                }
+                else if (e.dataTransfer?.types.includes("text/html")) {
                     const tmp = e.dataTransfer.getData("text");
                     txt = new Range().createContextualFragment(e.dataTransfer.getData("text/html")
                         .replace(/\v/g, "\n\t")
@@ -120,10 +140,10 @@
                         })
                     );
                 }
-                else if (e?.dataTransfer?.types.includes("text/plain")) {
+                else if (e.dataTransfer?.types.includes("text/plain")) {
                     txt = e.dataTransfer.getData("text/plain");
                 }
-                else if (e?.dataTransfer?.types.includes("Files")) {
+                else if (e.dataTransfer?.types.includes("Files")) {
                     txt = (await Promise.all(
                         Array.from(e.dataTransfer.items || []) //stackoverflow.com/questions/3590058
                             .flatMap(i => (i.webkitGetAsEntry()?.isFile === false) ? [] : (i.getAsFile() || []))
