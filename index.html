@@ -12,6 +12,7 @@
         }
 
         div[contenteditable="true"] {
+            cursor: text;
             width: 800px;
             max-width: 100%;
             height: 400px;
@@ -30,7 +31,6 @@
             overflow-wrap: break-word;
             overflow-anchor: none;
             overflow: auto;
-            cursor: text;
         }
 
         div[contenteditable="true"] img {
@@ -38,13 +38,23 @@
             max-width: 100%;
         }
 
-        ._editor_file_pending {
+        ._editor_file_wait,
+        ._editor_file_done {
             margin: 0 2px;
             padding: 1px;
             outline: 1px dashed black;
             outline-offset: -1px;
             vertical-align: middle;
-            opacity: 0.2;
+            opacity: 0.5;
+        }
+
+        ._editor_file_wait {
+            background: linear-gradient(90deg, orange 100%, currentcolor) no-repeat;
+            background-size: 0%;
+        }
+
+        ._editor_file_done {
+            background: green;
         }
     </style>
 </head>

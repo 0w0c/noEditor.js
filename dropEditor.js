@@ -93,7 +93,7 @@ class Editor {
         const doc = new DocumentFragment();
         doc.replaceChildren(new Range().createContextualFragment(await txt
             .replace(/[\u00A0-\u9999<>\&\'\"\\]/gi, _ => "&#" + _.charCodeAt(0) + ";")
-            .replace(/\v(blob:.*?(#.*?))\v/gi, "<img class=\"_editor_file_pending\" src=\"$1\" alt=\"\" />")
+            .replace(/\v(blob:.*?(#.*?))\v/gi, "<img class=\"_editor_file_wait\" src=\"$1\" alt=\"\" />")
             .replace(/\v(.*?)\v/gi, "<img src=\"$1\" alt=\"\" />")
             .replace(/\r\n|\r/g, "\n")
             .replace(/\n{3,}/g, "\n\n")
