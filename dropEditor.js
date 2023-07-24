@@ -7,24 +7,17 @@ class Editor {
     static _act = "";
     static _key = "";
     static _rec = {};
-    static async pick(e) {
-        var picker = document.querySelector('#picker');
-        if (!picker) {
-            picker = document.createElement('input');
-            picker.setAttribute('id', 'picker');
-            picker.setAttribute('type', 'file');
-            //picker.setAttribute('accept', 'image/*');
-            picker.setAttribute('multiple', 'multiple');
-            picker.setAttribute('hidden', 'hidden');
-            document.body.appendChild(picker);
+    //developer.mozilla.org/en-US/docs/Web/API/HTMLInputElement/webkitdirectory
+    //stackoverflow.com/questions/3590058
+    static async ourl(l) {
+        if (!l) { return; }
+        l.sort((a, b) => new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' }).compare(a.name, b.name))
+        const ourlList = [];
+        for (const f of l) {
+            ourlList.push("\v" + await this.item(f) + "\v");
         }
-        picker.click();
-        picker.onchange = async c => {
-            const files = document.querySelector('#picker').files;
-            if (!files.length) { return; }
-            await this.pour({ "fileList": (await Promise.all(Array.from(files).map(async f => "\v" + await this.item(f) + "\v"))).join("\n") });
-        };
-    };
+        return ourlList;
+    }
     static async item(f) {
         this.box.push(f);
         const fid = this.box.length;
@@ -48,15 +41,15 @@ class Editor {
             tag = tag.slice(0, bsr) + "...";
         }
         ctx.fillText(tag, 0, cvs.height / 2);
-        return URL.createObjectURL(await new Promise(r => cvs.toBlob(r))) + "#" + fid; // URL.revokeObjectURL
-    };
+        return URL.createObjectURL(await new Promise(r => cvs.toBlob(r))) + "#" + fid;
+    }
     static async pour(e) {
         "preventDefault" in (e ?? {}) && e.preventDefault();
         (e ??= {}).inputType ??= "insertFromPaste";
         this.prep(e);
         let txt = "";
-        if (e.fileList) {
-            txt = e.fileList;
+        if (e.ourlList) {
+            txt = e.ourlList.join("\n");
         }
         else if (e.dataTransfer?.types.includes("text/html")) {
             const tmp = e.dataTransfer.getData("text");
@@ -70,29 +63,23 @@ class Editor {
                 .replace(/(\vblob:[^#]+?\v)(?=\vblob:)/gi, "$1\n")
                 .replace(/^[^\S\v]+/, tmp.match(/^[^\S\n]*(\n*)/)[1])
                 .replace(/[^\S\v]+$/, tmp.match(/(\n*)[^\S\n]*$/)[1])
-            await Promise.all(
-                Array.from(new Set(txt.match(/\v(?:blob|data):[^#]+?\v/gi) || [])).map(async m => {
-                    const u = m.slice(1, m.length - 1);
-                    const i = await fetch(u).then(r => r.blob()).then(b => new File([b], "")).then(f => this.item(f));
-                    txt = txt.replaceAll(u, i);
-                    if (u.startsWith("blob:")) { URL.revokeObjectURL(u); }
-                })
-            );
+            for (const m of new Set(txt.match(/\v(?:blob|data):[^#]+?\v/gi) || [])) {
+                const u = m.slice(1, m.length - 1);
+                txt = txt.replaceAll(u, await fetch(u).then(r => r.blob()).then(b => new File([b], "")).then(f => this.item(f)));
+                if (u.startsWith("blob:")) { URL.revokeObjectURL(u); }
+            }
         }
         else if (e.dataTransfer?.types.includes("text/plain")) {
             txt = e.dataTransfer.getData("text/plain");
         }
         else if (e.dataTransfer?.types.includes("Files")) {
-            txt = (await Promise.all(
-                Array.from(e.dataTransfer.items || []) //stackoverflow.com/questions/3590058
-                    .flatMap(i => (i.webkitGetAsEntry()?.isFile === false) ? [] : (i.getAsFile() || []))
-                    .sort((a, b) => new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' }).compare(a.name, b.name))
-                    .map(async f => "\v" + await this.item(f) + "\v"))
-            ).join("\n")
+            const files = [];
+            for (const i of e.dataTransfer.items) { if (i.webkitGetAsEntry()?.isFile) { files.push(i.getAsFile()); } }
+            txt = (await this.ourl(files)).join("\n");
         }
         const doc = new DocumentFragment();
-        doc.replaceChildren(new Range().createContextualFragment(await txt
-            .replace(/[\u00A0-\u9999<>\&\'\"\\]/gi, _ => "&#" + _.charCodeAt(0) + ";")
+        doc.replaceChildren(new Range().createContextualFragment(txt
+            .replace(/[\u00A0-\u9999<>\&\'\"\\]/gi, c => "&#" + c.charCodeAt(0) + ";")
             .replace(/\v(blob:.*?(#.*?))\v/gi, "<img class=\"_editor_file_wait\" src=\"$1\" alt=\"\" />")
             .replace(/\v(.*?)\v/gi, "<img src=\"$1\" alt=\"\" />")
             .replace(/\r\n|\r/g, "\n")
@@ -107,7 +94,7 @@ class Editor {
         r.sl.removeAllRanges();
         r.sl.addRange(r.rg);
         this.done(e);
-    };
+    }
     static dump(e) {
         const use = this.rev[this.ver - 1];
         if (!use) { return; }
@@ -134,7 +121,7 @@ class Editor {
         this.slide(r.rg);
         r.sl.removeAllRanges();
         r.sl.addRange(r.rg);
-    };
+    }
     static undo(e) {
         "preventDefault" in (e ?? {}) && e.preventDefault();
         (e ??= {}).inputType ??= "historyUndo";
@@ -143,7 +130,7 @@ class Editor {
         this.ver--;
         this.dump(e);
         this.done(e);
-    };
+    }
     static redo(e) {
         "preventDefault" in (e ?? {}) && e.preventDefault();
         (e ??= {}).inputType ??= "historyRedo";
@@ -152,7 +139,7 @@ class Editor {
         this.ver++;
         this.dump(e);
         this.done(e);
-    };
+    }
     static nlbr(e) {
         "preventDefault" in (e ?? {}) && e.preventDefault();
         (e ??= {}).inputType ??= "insertLineBreak";
@@ -165,21 +152,24 @@ class Editor {
         r.sl.removeAllRanges();
         r.sl.addRange(r.rg);
         this.done(e);
-    };
+    }
     static prep(e) {
         this.dom.focus();
         if (!["!", "insertCompositionText", "insertFromComposition", "deleteCompositionText"].includes(this._act)) {
             if (!this._act.startsWith("history")) {
-                const child = Array.from(this.dom.childNodes);
                 const rgNow = this.range(e).rg;
                 const rgAll = new Range();
                 rgAll.selectNodeContents(this.dom);
                 this.rev.push({
-                    startIndex: child.indexOf(rgNow.startContainer),
+                    startIndex: -1,
                     startOffset: rgNow.startOffset,
-                    endIndex: child.indexOf(rgNow.endContainer),
+                    endIndex: -1,
                     endOffset: rgNow.endOffset,
-                    dom: child.length ? rgAll.cloneContents() : rgAll.createContextualFragment("\n")
+                    dom: this.dom.childNodes.length ? rgAll.cloneContents() : rgAll.createContextualFragment("\n")
+                });
+                this.dom.childNodes.forEach((n, k) => {
+                    if (n === rgNow.startContainer) { this.rev.at(-1).startIndex = k; }
+                    if (n === rgNow.endContainer) { this.rev.at(-1).endIndex = k; }
                 });
                 this.ver = this.rev.length;
             }
@@ -188,10 +178,24 @@ class Editor {
             }
         }
         this._act = e?.inputType || "";
-    };
+    }
     static done(e) {
         if (this.dom.textContent.slice(-1) !== "\n") { this.dom.appendChild(new Text("\n")); }
-    };
+    }
+    static pick(e) {
+        let picker = document.querySelector('#_editor_pick');
+        if (!picker) {
+            picker = document.createElement('input');
+            picker.setAttribute('id', '_editor_pick');
+            picker.setAttribute('type', 'file');
+            //picker.setAttribute('accept', 'image/*');
+            picker.setAttribute('multiple', 'multiple');
+            picker.setAttribute('hidden', 'hidden');
+            document.body.appendChild(picker);
+        }
+        picker.onchange = async () => await this.ourl([...picker.files]).then(ourlList => this.pour({ ourlList }));
+        picker.click();
+    }
     static range(e) {
         const sl = document.getSelection();
         if (e?.clientX && e?.clientY) {
@@ -199,7 +203,7 @@ class Editor {
             if (document.caretRangeFromPoint) { return { sl, rg: document.caretRangeFromPoint(e.clientX, e.clientY) } }
         }
         return { sl, rg: sl.rangeCount ? sl.getRangeAt(0) : new Range() }
-    };
+    }
     static slide(r) {
         const n = new Text("\u200B");
         r = r.cloneRange();
@@ -207,7 +211,7 @@ class Editor {
         const d = r.getBoundingClientRect().bottom - (this.dom.getBoundingClientRect().top + this.dom.clientTop + this.dom.clientHeight - parseInt(this.css.paddingBottom));
         n.remove();
         if (d > 0) { this.dom.scrollTop += d; }
-    };
+    }
     static watch(s) {
         this.dom = document.querySelector(s);
         this.dom.addEventListener('keydown', async e => {
@@ -307,9 +311,9 @@ class Editor {
                 await this.pour(e);
             }
         }, false);
-        ['dragenter', 'dragover', 'drop'].forEach(_ => {
-            window.addEventListener(_, async e => e.preventDefault(), false);
-            this.dom.addEventListener(_, async e => e.stopPropagation(), false);
+        ['dragenter', 'dragover', 'drop'].forEach(a => {
+            window.addEventListener(a, async e => e.preventDefault(), false);
+            this.dom.addEventListener(a, async e => e.stopPropagation(), false);
         });
         this.dom.setAttribute("translate", "no");
         this.dom.setAttribute("spellcheck", "false");
@@ -319,13 +323,23 @@ class Editor {
         this.dom.appendChild(rct);
         this.css.textHeight = rct.getClientRects()[0].height;
         this.dom.removeChild(rct);
-        this.done(window.event);
-    };
+        this.done(document.event);
+        /*
+        new MutationObserver(l => { //avoid forEach?
+            l.forEach(r => r.removedNodes.forEach(n => {
+                //console.log(n);
+            }
+            ));
+            //console.log(r);
+            //r.removedNodes.map(n => console.log(n));
+        }).observe(this.dom, { childList: true });
+        */
+    }
     static sweep() {
         this.ver = 0;
         this.rev = [];
         this._act = "";
         this._key = "";
         this._rec = {};
-    };
-};
+    }
+}
