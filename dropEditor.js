@@ -4,10 +4,11 @@ class Editor {
     static ver = 0;
     static rev = [];
     static box = [];
+    static bin = {};
+    static set = {};
     static _act = "";
     static _key = "";
     static _rec = {};
-    //developer.mozilla.org/en-US/docs/Web/API/HTMLInputElement/webkitdirectory
     //stackoverflow.com/questions/3590058
     static async ourl(l) {
         if (!l) { return; }
@@ -18,18 +19,32 @@ class Editor {
         }
         return ourlList;
     }
-    static async item(f) {
-        this.box.push(f);
-        const fid = this.box.length;
+    static async item(i) {
+        let fid;
+        let tag;
+        let rec;
+        const add = i instanceof File;
         const cvs = document.createElement("canvas");
         cvs.width = 150;
         cvs.height = this.css.textHeight;
         const ctx = cvs.getContext("2d");
+        if (add) {
+            this.box.push(i);
+            fid = this.box.length;
+            tag = i.name || "#" + fid;
+        }
+        else {
+            fid = 0;
+            tag = decodeURIComponent(i.src.match(/^blob:.*?#\d+#(.*?)$/)[1]);
+            rec = encodeURIComponent(tag);
+            if (this.bin[rec]) { i.src = this.bin[rec]; return; }
+            ctx.fillStyle = "red";
+            ctx.fillRect(0, 0, cvs.width, cvs.height);
+        }
         ctx.font = this.css.font;
         ctx.fillStyle = "black";
         ctx.textBaseline = "middle";
-        let tag = f.name || "#" + fid;
-        if (ctx.measureText(tag).width > cvs.width) {
+        if (add && ctx.measureText(tag).width > cvs.width) {
             const max = cvs.width - ctx.measureText("...").width;
             let bsl = 0;
             let bsr = tag.length;
@@ -41,7 +56,8 @@ class Editor {
             tag = tag.slice(0, bsr) + "...";
         }
         ctx.fillText(tag, 0, cvs.height / 2);
-        return URL.createObjectURL(await new Promise(r => cvs.toBlob(r))) + "#" + fid;
+        const u = URL.createObjectURL(await new Promise(r => cvs.toBlob(r))) + "#" + fid + "#" + tag;
+        if (add) { return u; } else { i.src = u; this.bin[rec] = u; }
     }
     static async pour(e) {
         "preventDefault" in (e ?? {}) && e.preventDefault();
@@ -73,14 +89,14 @@ class Editor {
             txt = e.dataTransfer.getData("text/plain");
         }
         else if (e.dataTransfer?.types.includes("Files")) {
-            const files = [];
-            for (const i of e.dataTransfer.items) { if (i.webkitGetAsEntry()?.isFile) { files.push(i.getAsFile()); } }
-            txt = (await this.ourl(files)).join("\n");
+            const l = [];
+            for (const i of e.dataTransfer.items) { if (i.webkitGetAsEntry()?.isFile) { l.push(i.getAsFile()); } }
+            txt = (await this.ourl(l)).join("\n");
         }
         const doc = new DocumentFragment();
         doc.replaceChildren(new Range().createContextualFragment(txt
             .replace(/[\u00A0-\u9999<>\&\'\"\\]/gi, c => "&#" + c.charCodeAt(0) + ";")
-            .replace(/\v(blob:.*?(#.*?))\v/gi, "<img class=\"_editor_file_wait\" src=\"$1\" alt=\"\" />")
+            .replace(/\v(blob:.*?#\d+#(.*?))\v/gi, "<img onerror=\"Editor.item(this)\" class=\"_editor_file_wait\" src=\"$1\" alt=\"$2\" />")
             .replace(/\v(.*?)\v/gi, "<img src=\"$1\" alt=\"\" />")
             .replace(/\r\n|\r/g, "\n")
             .replace(/\n{3,}/g, "\n\n")
@@ -94,6 +110,7 @@ class Editor {
         r.sl.removeAllRanges();
         r.sl.addRange(r.rg);
         this.done(e);
+        this.upld();
     }
     static dump(e) {
         const use = this.rev[this.ver - 1];
@@ -182,19 +199,22 @@ class Editor {
     static done(e) {
         if (this.dom.textContent.slice(-1) !== "\n") { this.dom.appendChild(new Text("\n")); }
     }
-    static pick(e) {
-        let picker = document.querySelector('#_editor_pick');
-        if (!picker) {
-            picker = document.createElement('input');
-            picker.setAttribute('id', '_editor_pick');
-            picker.setAttribute('type', 'file');
-            //picker.setAttribute('accept', 'image/*');
-            picker.setAttribute('multiple', 'multiple');
-            picker.setAttribute('hidden', 'hidden');
-            document.body.appendChild(picker);
+    static pick() {
+        let p = document.querySelector('#_editor_pick');
+        if (!p) {
+            p = document.createElement('input');
+            p.setAttribute('id', '_editor_pick');
+            p.setAttribute('type', 'file');
+            p.setAttribute('multiple', 'multiple');
+            p.setAttribute('hidden', 'hidden');
+            if (this.set["accept"]) { p.setAttribute('accept', this.set["accept"]); }
+            document.body.appendChild(p);
         }
-        picker.onchange = async () => await this.ourl([...picker.files]).then(ourlList => this.pour({ ourlList }));
-        picker.click();
+        p.onchange = async () => await this.ourl([...p.files]).then(ourlList => this.pour({ ourlList }));
+        p.click();
+    }
+    static upld() {
+        console.log("upload");
     }
     static range(e) {
         const sl = document.getSelection();
@@ -324,16 +344,6 @@ class Editor {
         this.css.textHeight = rct.getClientRects()[0].height;
         this.dom.removeChild(rct);
         this.done(document.event);
-        /*
-        new MutationObserver(l => { //avoid forEach?
-            l.forEach(r => r.removedNodes.forEach(n => {
-                //console.log(n);
-            }
-            ));
-            //console.log(r);
-            //r.removedNodes.map(n => console.log(n));
-        }).observe(this.dom, { childList: true });
-        */
     }
     static sweep() {
         this.ver = 0;
