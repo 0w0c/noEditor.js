@@ -37,6 +37,7 @@ class Editor {
             fid = 0;
             tag = decodeURIComponent(i.src.match(/^blob:.*?#\d+#(.*?)$/)[1]);
             rec = encodeURIComponent(tag);
+            i.setAttribute("fid", 0);
             if (this.bin[rec]) { i.src = this.bin[rec]; return; }
             ctx.fillStyle = "red";
             ctx.fillRect(0, 0, cvs.width, cvs.height);
@@ -96,7 +97,7 @@ class Editor {
         const doc = new DocumentFragment();
         doc.replaceChildren(new Range().createContextualFragment(txt
             .replace(/[\u00A0-\u9999<>\&\'\"\\]/gi, c => "&#" + c.charCodeAt(0) + ";")
-            .replace(/\v(blob:.*?#\d+#(.*?))\v/gi, "<img onerror=\"Editor.item(this)\" class=\"_editor_file_wait\" src=\"$1\" alt=\"$2\" />")
+            .replace(/\v(blob:.*?#(\d+)#(.*?))\v/gi, "<img onerror=\"Editor.item(this)\" class=\"_editor_file_wait\" src=\"$1\" fid=\"$2\" alt=\"$3\" />")
             .replace(/\v(.*?)\v/gi, "<img src=\"$1\" alt=\"\" />")
             .replace(/\r\n|\r/g, "\n")
             .replace(/\n{3,}/g, "\n\n")
@@ -110,7 +111,6 @@ class Editor {
         r.sl.removeAllRanges();
         r.sl.addRange(r.rg);
         this.done(e);
-        this.upld();
     }
     static dump(e) {
         const use = this.rev[this.ver - 1];
@@ -198,6 +198,7 @@ class Editor {
     }
     static done(e) {
         if (this.dom.textContent.slice(-1) !== "\n") { this.dom.appendChild(new Text("\n")); }
+        this.upld();
     }
     static pick() {
         let p = document.querySelector('#_editor_pick');
@@ -214,7 +215,32 @@ class Editor {
         p.click();
     }
     static upld() {
-        console.log("upload");
+        if (this._rec["xhr"] || !this.box.length) { return; }
+        // 1. copy a uploaded file not work? 2. reduce this box length test
+        const fid = this.box.findIndex((v, k) => v && this.dom.querySelector("._editor_file_wait[fid='" + (k + 1) + "']")) + 1;
+        if (!fid) { return; }
+        const xhr = this._rec["xhr"] = new XMLHttpRequest();
+        xhr.open('POST', "https://api.escuelajs.co/api/v1/files/upload");
+        xhr.onerror = () => { alert('network error'); }; // this.item({error});
+        xhr.upload.onprogress = e => {
+            if (!e.lengthComputable) { return; }
+            const itm = this.dom.querySelectorAll("._editor_file_wait[fid='" + fid + "']");
+            if (!itm.length) { xhr.abort(); delete this._rec["xhr"]; return; }
+            itm.forEach(i => i.style.backgroundSize = parseInt(99 * e.loaded / e.total) + "%");
+        };
+        xhr.onreadystatechange = () => {
+            if (xhr.readyState !== 4 || ![200, 201].includes(xhr.status)) { return; }
+            this.dom.querySelectorAll("._editor_file_wait[fid='" + fid + "']").forEach(i => {
+                i.setAttribute("class", "_editor_file_done");
+                i.removeAttribute("onerror");
+                delete this.box[fid - 1];
+            });
+            delete this._rec["xhr"];
+            setInterval(this.upld(), 2000);
+        };
+        const pre = new FormData();
+        pre.append('file', this.box[fid - 1]);
+        xhr.send(pre);
     }
     static range(e) {
         const sl = document.getSelection();
