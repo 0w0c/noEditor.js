@@ -1,4 +1,5 @@
 class Editor {
+    // file box key use blob url ?
     static dom;
     static css;
     static ver = 0;
@@ -9,8 +10,6 @@ class Editor {
     static _act = "";
     static _key = "";
     static _rec = {};
-    // upload failed copy reload paste
-    // upld faster than onerror
     static async ourl(l) {
         if (!l) { return; }
         l.sort((a, b) => new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' }).compare(a.name, b.name))
@@ -30,8 +29,9 @@ class Editor {
             fid = this.box.length;
             tag = i.name || "#" + fid;
         } else {
+            if (i.retry) { fid = i.getAttribute("fid"); }
+            else { fid = 0; i.setAttribute("fid", 0); }
             i.setAttribute("class", "_editor_file_fail");
-            fid = i.getAttribute("fid");
             tag = decodeURIComponent(i.src.match(/^blob:.*?#\d+#(.*?)$/)[1]);
             rec = encodeURIComponent(tag);
             if (this.bin[rec]) { i.src = this.bin[rec]; return; }
@@ -213,7 +213,7 @@ class Editor {
         let fid = 0;
         for (const i of this.dom.querySelectorAll("._editor_file_wait")) {
             const id = parseInt(i.getAttribute("fid"));
-            if (!this.box[id - 1]) {
+            if (this.box[id - 1] === {}) {
                 i.setAttribute("class", "_editor_file_done");
                 i.removeAttribute("onerror");
             } else if (!fid) {
@@ -222,11 +222,11 @@ class Editor {
         }
         if (!fid || this._rec["xhr"]) { return; }
         this._rec["xhr"] = new XMLHttpRequest();
-        this._rec["xhr"].open("POST", "aaass"); //https://api.escuelajs.co/api/v1/files/upload
+        this._rec["xhr"].open("POST", "http://aaass"); //https://api.escuelajs.co/api/v1/files/upload
         this._rec["xhr"].onerror = () => {
             this._rec["xhr"].abort();
             delete this._rec["xhr"];
-            this.dom.querySelectorAll("._editor_file_wait[fid='" + fid + "']").forEach(d => this.item(d));
+            this.dom.querySelectorAll("._editor_file_wait[fid='" + fid + "']").forEach(d => (d.retry = true) && this.item(d));
             this.upld();
         };
         this._rec["xhr"].upload.onprogress = e => {
@@ -254,7 +254,7 @@ class Editor {
                 i.removeAttribute("onerror");
             });
             delete this._rec["xhr"];
-            delete this.box[fid - 1];
+            this.box[fid - 1] = {};
             this.upld();
         };
         const pre = new FormData();
