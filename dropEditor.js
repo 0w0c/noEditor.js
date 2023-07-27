@@ -9,7 +9,8 @@ class Editor {
     static _act = "";
     static _key = "";
     static _rec = {};
-    //stackoverflow.com/questions/3590058
+    // upload failed copy reload paste
+    // upld faster than onerror
     static async ourl(l) {
         if (!l) { return; }
         l.sort((a, b) => new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' }).compare(a.name, b.name))
@@ -24,24 +25,21 @@ class Editor {
         let tag;
         let rec;
         const add = i instanceof File;
-        const cvs = document.createElement("canvas");
-        cvs.width = 150;
-        cvs.height = this.css.textHeight;
-        const ctx = cvs.getContext("2d");
         if (add) {
             this.box.push(i);
             fid = this.box.length;
             tag = i.name || "#" + fid;
-        }
-        else {
-            fid = 0;
+        } else {
+            i.setAttribute("class", "_editor_file_fail");
+            fid = i.getAttribute("fid");
             tag = decodeURIComponent(i.src.match(/^blob:.*?#\d+#(.*?)$/)[1]);
             rec = encodeURIComponent(tag);
-            i.setAttribute("fid", 0);
             if (this.bin[rec]) { i.src = this.bin[rec]; return; }
-            ctx.fillStyle = "red";
-            ctx.fillRect(0, 0, cvs.width, cvs.height);
         }
+        const cvs = document.createElement("canvas");
+        cvs.width = 150;
+        cvs.height = this.css.textHeight;
+        const ctx = cvs.getContext("2d");
         ctx.font = this.css.font;
         ctx.fillStyle = "black";
         ctx.textBaseline = "middle";
@@ -58,7 +56,8 @@ class Editor {
         }
         ctx.fillText(tag, 0, cvs.height / 2);
         const u = URL.createObjectURL(await new Promise(r => cvs.toBlob(r))) + "#" + fid + "#" + tag;
-        if (add) { return u; } else { i.src = u; this.bin[rec] = u; }
+        if (add) { return u; }
+        else { i.src = u; this.bin[rec] = u; }
     }
     static async pour(e) {
         "preventDefault" in (e ?? {}) && e.preventDefault();
@@ -67,8 +66,7 @@ class Editor {
         let txt = "";
         if (e.ourlList) {
             txt = e.ourlList.join("\n");
-        }
-        else if (e.dataTransfer?.types.includes("text/html")) {
+        } else if (e.dataTransfer?.types.includes("text/html")) {
             const tmp = e.dataTransfer.getData("text");
             txt = new Range().createContextualFragment(e.dataTransfer.getData("text/html")
                 .replace(/\v/g, "\n\t")
@@ -85,11 +83,9 @@ class Editor {
                 txt = txt.replaceAll(u, await fetch(u).then(r => r.blob()).then(b => new File([b], "")).then(f => this.item(f)));
                 if (u.startsWith("blob:")) { URL.revokeObjectURL(u); }
             }
-        }
-        else if (e.dataTransfer?.types.includes("text/plain")) {
+        } else if (e.dataTransfer?.types.includes("text/plain")) {
             txt = e.dataTransfer.getData("text/plain");
-        }
-        else if (e.dataTransfer?.types.includes("Files")) {
+        } else if (e.dataTransfer?.types.includes("Files")) {
             const l = [];
             for (const i of e.dataTransfer.items) { if (i.webkitGetAsEntry()?.isFile) { l.push(i.getAsFile()); } }
             txt = (await this.ourl(l)).join("\n");
@@ -189,8 +185,7 @@ class Editor {
                     if (n === rgNow.endContainer) { this.rev.at(-1).endIndex = k; }
                 });
                 this.ver = this.rev.length;
-            }
-            else if (e?.inputType && !e.inputType.startsWith("history")) {
+            } else if (e?.inputType && !e.inputType.startsWith("history")) {
                 this.rev.splice(this.ver);
             }
         }
@@ -201,46 +196,70 @@ class Editor {
         this.upld();
     }
     static pick() {
-        let p = document.querySelector('#_editor_pick');
+        let p = document.querySelector("#_editor_pick");
         if (!p) {
-            p = document.createElement('input');
-            p.setAttribute('id', '_editor_pick');
-            p.setAttribute('type', 'file');
-            p.setAttribute('multiple', 'multiple');
-            p.setAttribute('hidden', 'hidden');
-            if (this.set["accept"]) { p.setAttribute('accept', this.set["accept"]); }
+            p = document.createElement("input");
+            p.setAttribute("id", "_editor_pick");
+            p.setAttribute("type", "file");
+            p.setAttribute("multiple", "multiple");
+            p.setAttribute("hidden", "hidden");
+            if (this.set["accept"]) { p.setAttribute("accept", this.set["accept"]); }
             document.body.appendChild(p);
         }
         p.onchange = async () => await this.ourl([...p.files]).then(ourlList => this.pour({ ourlList }));
         p.click();
     }
     static upld() {
-        if (this._rec["xhr"] || !this.box.length) { return; }
-        // 1. copy a uploaded file not work? 2. reduce this box length test
-        const fid = this.box.findIndex((v, k) => v && this.dom.querySelector("._editor_file_wait[fid='" + (k + 1) + "']")) + 1;
-        if (!fid) { return; }
-        const xhr = this._rec["xhr"] = new XMLHttpRequest();
-        xhr.open('POST', "https://api.escuelajs.co/api/v1/files/upload");
-        xhr.onerror = () => { alert('network error'); }; // this.item({error});
-        xhr.upload.onprogress = e => {
-            if (!e.lengthComputable) { return; }
-            const itm = this.dom.querySelectorAll("._editor_file_wait[fid='" + fid + "']");
-            if (!itm.length) { xhr.abort(); delete this._rec["xhr"]; return; }
-            itm.forEach(i => i.style.backgroundSize = parseInt(99 * e.loaded / e.total) + "%");
+        let fid = 0;
+        for (const i of this.dom.querySelectorAll("._editor_file_wait")) {
+            const id = parseInt(i.getAttribute("fid"));
+            if (!this.box[id - 1]) {
+                i.setAttribute("class", "_editor_file_done");
+                i.removeAttribute("onerror");
+            } else if (!fid) {
+                fid = id;
+            }
+        }
+        if (!fid || this._rec["xhr"]) { return; }
+        this._rec["xhr"] = new XMLHttpRequest();
+        this._rec["xhr"].open("POST", "aaass"); //https://api.escuelajs.co/api/v1/files/upload
+        this._rec["xhr"].onerror = () => {
+            this._rec["xhr"].abort();
+            delete this._rec["xhr"];
+            this.dom.querySelectorAll("._editor_file_wait[fid='" + fid + "']").forEach(d => this.item(d));
+            this.upld();
         };
-        xhr.onreadystatechange = () => {
-            if (xhr.readyState !== 4 || ![200, 201].includes(xhr.status)) { return; }
+        this._rec["xhr"].upload.onprogress = e => {
+            if (!e.lengthComputable) { return; }
+            const fl = this.dom.querySelectorAll("._editor_file_wait[fid='" + fid + "']");
+            if (!fl.length && !this._rec["file_" + fid + "_abort"]) {
+                this._rec["file_" + fid + "_abort"] = setTimeout(() => {
+                    this._rec["xhr"].abort();
+                    delete this._rec["xhr"];
+                    delete this._rec["file_" + fid + "_abort"];
+                    this.upld();
+                }, 3000);
+                return;
+            }
+            if (fl.length && this._rec["file_" + fid + "_abort"]) {
+                clearTimeout(this._rec["file_" + fid + "_abort"]);
+                delete this._rec["file_" + fid + "_abort"];
+            }
+            fl.forEach(i => i.style.backgroundSize = parseInt(100 * e.loaded / e.total) + "%");
+        };
+        this._rec["xhr"].onreadystatechange = () => {
+            if (this._rec["xhr"].readyState !== 4 || ![200, 201].includes(this._rec["xhr"].status)) { return; }
             this.dom.querySelectorAll("._editor_file_wait[fid='" + fid + "']").forEach(i => {
                 i.setAttribute("class", "_editor_file_done");
                 i.removeAttribute("onerror");
-                delete this.box[fid - 1];
             });
             delete this._rec["xhr"];
-            setInterval(this.upld(), 2000);
+            delete this.box[fid - 1];
+            this.upld();
         };
         const pre = new FormData();
-        pre.append('file', this.box[fid - 1]);
-        xhr.send(pre);
+        pre.append("file", this.box[fid - 1]);
+        this._rec["xhr"].send(pre);
     }
     static range(e) {
         const sl = document.getSelection();
