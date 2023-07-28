@@ -1,5 +1,4 @@
 class Editor {
-    // file box key use blob url ?
     static dom;
     static css;
     static ver = 0;
@@ -20,19 +19,15 @@ class Editor {
         return ourlList;
     }
     static async item(i) {
-        let fid;
         let tag;
         let rec;
         const add = i instanceof File;
         if (add) {
-            this.box.push(i);
-            fid = this.box.length;
-            tag = i.name || "#" + fid;
+            tag = i.name;
         } else {
-            if (i.retry) { fid = i.getAttribute("fid"); }
-            else { fid = 0; i.setAttribute("fid", 0); }
             i.setAttribute("class", "_editor_file_fail");
-            tag = decodeURIComponent(i.src.match(/^blob:.*?#\d+#(.*?)$/)[1]);
+            if (this.box[i.getAttribute("fid")]) { return; }
+            tag = decodeURIComponent(i.src.match(/^blob:.*?#(.*?)$/)[1]);
             rec = encodeURIComponent(tag);
             if (this.bin[rec]) { i.src = this.bin[rec]; return; }
         }
@@ -55,8 +50,9 @@ class Editor {
             tag = tag.slice(0, bsr) + "...";
         }
         ctx.fillText(tag, 0, cvs.height / 2);
-        const u = URL.createObjectURL(await new Promise(r => cvs.toBlob(r))) + "#" + fid + "#" + tag;
-        if (add) { return u; }
+        const o = URL.createObjectURL(await new Promise(r => cvs.toBlob(r)));
+        const u = o + "#" + tag;
+        if (add) { if (o) { this.box[o.substring(o.lastIndexOf("/") + 1)] = i; } return u; }
         else { i.src = u; this.bin[rec] = u; }
     }
     static async pour(e) {
@@ -93,7 +89,7 @@ class Editor {
         const doc = new DocumentFragment();
         doc.replaceChildren(new Range().createContextualFragment(txt
             .replace(/[\u00A0-\u9999<>\&\'\"\\]/gi, c => "&#" + c.charCodeAt(0) + ";")
-            .replace(/\v(blob:.*?#(\d+)#(.*?))\v/gi, "<img onerror=\"Editor.item(this)\" class=\"_editor_file_wait\" src=\"$1\" fid=\"$2\" alt=\"$3\" />")
+            .replace(/\v(blob:.*?\/([\w-]+)#(.*?))\v/gi, "<img class=\"_editor_file_wait\" src=\"$1\" fid=\"$2\" alt=\"$3\" />")
             .replace(/\v(.*?)\v/gi, "<img src=\"$1\" alt=\"\" />")
             .replace(/\r\n|\r/g, "\n")
             .replace(/\n{3,}/g, "\n\n")
@@ -212,10 +208,11 @@ class Editor {
     static upld() {
         let fid = 0;
         for (const i of this.dom.querySelectorAll("._editor_file_wait")) {
-            const id = parseInt(i.getAttribute("fid"));
-            if (this.box[id - 1] === {}) {
+            const id = i.getAttribute("fid");
+            if (!this.box[id]) {
+                this.item(i);
+            } else if (this.box[id] === {}) {
                 i.setAttribute("class", "_editor_file_done");
-                i.removeAttribute("onerror");
             } else if (!fid) {
                 fid = id;
             }
@@ -226,7 +223,7 @@ class Editor {
         this._rec["xhr"].onerror = () => {
             this._rec["xhr"].abort();
             delete this._rec["xhr"];
-            this.dom.querySelectorAll("._editor_file_wait[fid='" + fid + "']").forEach(d => (d.retry = true) && this.item(d));
+            this.dom.querySelectorAll("._editor_file_wait[fid='" + fid + "']").forEach(i => this.item(i));
             this.upld();
         };
         this._rec["xhr"].upload.onprogress = e => {
@@ -251,14 +248,13 @@ class Editor {
             if (this._rec["xhr"].readyState !== 4 || ![200, 201].includes(this._rec["xhr"].status)) { return; }
             this.dom.querySelectorAll("._editor_file_wait[fid='" + fid + "']").forEach(i => {
                 i.setAttribute("class", "_editor_file_done");
-                i.removeAttribute("onerror");
             });
             delete this._rec["xhr"];
-            this.box[fid - 1] = {};
+            this.box[fid] = {};
             this.upld();
         };
         const pre = new FormData();
-        pre.append("file", this.box[fid - 1]);
+        pre.append("file", this.box[fid]);
         this._rec["xhr"].send(pre);
     }
     static range(e) {

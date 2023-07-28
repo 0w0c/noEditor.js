@@ -39,6 +39,7 @@
         }
 
         ._editor_file_wait,
+        ._editor_file_fail,
         ._editor_file_done {
             margin: 0 2px;
             padding: 1px;
@@ -51,6 +52,10 @@
         ._editor_file_wait {
             background: linear-gradient(90deg, orange 100%, currentcolor) no-repeat;
             background-size: 0%;
+        }
+
+        ._editor_file_fail {
+            background: red;
         }
 
         ._editor_file_done {
@@ -66,7 +71,7 @@
     <a href="javascript:Editor.sweep();">Sweep</a>
     <br />
     <div contenteditable="true"></div>
-    <script src="dropEditor.js" onload="Editor.watch('div[contenteditable=true]');"></script>
+    <script src="dropEditor.js" onload="Editor.set={};Editor.watch('div[contenteditable=true]');"></script>
 </body>
 
 </html>
