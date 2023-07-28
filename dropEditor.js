@@ -26,7 +26,6 @@ class Editor {
             tag = i.name;
         } else {
             i.setAttribute("class", "_editor_file_fail");
-            if (this.box[i.getAttribute("fid")]) { return; }
             tag = decodeURIComponent(i.src.match(/^blob:.*?#(.*?)$/)[1]);
             rec = encodeURIComponent(tag);
             if (this.bin[rec]) { i.src = this.bin[rec]; return; }
@@ -223,7 +222,7 @@ class Editor {
         this._rec["xhr"].upload.onerror = () => {
             this._rec["xhr"].abort();
             delete this._rec["xhr"];
-            this.dom.querySelectorAll("._editor_file_wait[fid='" + fid + "']").forEach(i => this.item(i));
+            this.dom.querySelectorAll("._editor_file_wait[fid='" + fid + "']").forEach(i => i.setAttribute("class", "_editor_file_fail"));
             this.upld();
         };
         this._rec["xhr"].upload.onprogress = e => {
@@ -246,11 +245,9 @@ class Editor {
         };
         this._rec["xhr"].onreadystatechange = () => {
             if (this._rec["xhr"].readyState !== 4 || ![200, 201].includes(this._rec["xhr"].status)) { this.upld(); return; }
-            this.dom.querySelectorAll("._editor_file_wait[fid='" + fid + "']").forEach(i => {
-                i.setAttribute("class", "_editor_file_done");
-            });
             delete this._rec["xhr"];
             this.box[fid]["done"] = true;
+            this.dom.querySelectorAll("._editor_file_wait[fid='" + fid + "']").forEach(i => i.setAttribute("class", "_editor_file_done"));
             this.upld();
         };
         const pre = new FormData();
