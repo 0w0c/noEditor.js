@@ -211,7 +211,7 @@ class Editor {
             const id = i.getAttribute("fid");
             if (!this.box[id]) {
                 this.item(i);
-            } else if (this.box[id] === {}) {
+            } else if (this.box[id]["done"]) {
                 i.setAttribute("class", "_editor_file_done");
             } else if (!fid) {
                 fid = id;
@@ -219,8 +219,8 @@ class Editor {
         }
         if (!fid || this._rec["xhr"]) { return; }
         this._rec["xhr"] = new XMLHttpRequest();
-        this._rec["xhr"].open("POST", "http://aaass"); //https://api.escuelajs.co/api/v1/files/upload
-        this._rec["xhr"].onerror = () => {
+        this._rec["xhr"].open("POST", "https://api.escuelajs.co/api/v1/files/upload");
+        this._rec["xhr"].upload.onerror = () => {
             this._rec["xhr"].abort();
             delete this._rec["xhr"];
             this.dom.querySelectorAll("._editor_file_wait[fid='" + fid + "']").forEach(i => this.item(i));
@@ -245,12 +245,12 @@ class Editor {
             fl.forEach(i => i.style.backgroundSize = parseInt(100 * e.loaded / e.total) + "%");
         };
         this._rec["xhr"].onreadystatechange = () => {
-            if (this._rec["xhr"].readyState !== 4 || ![200, 201].includes(this._rec["xhr"].status)) { return; }
+            if (this._rec["xhr"].readyState !== 4 || ![200, 201].includes(this._rec["xhr"].status)) { this.upld(); return; }
             this.dom.querySelectorAll("._editor_file_wait[fid='" + fid + "']").forEach(i => {
                 i.setAttribute("class", "_editor_file_done");
             });
             delete this._rec["xhr"];
-            this.box[fid] = {};
+            this.box[fid]["done"] = true;
             this.upld();
         };
         const pre = new FormData();
