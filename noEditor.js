@@ -209,29 +209,31 @@ class Editor {
     }
     static upld() {
         let fid = 0;
-        for (const i of this.dom.querySelectorAll("._editor_file_wait")) {
-            const id = i.getAttribute("fid");
+        for (const dom of this.dom.querySelectorAll("._editor_file_wait")) {
+            const id = dom.getAttribute("fid");
             if (!this.box[id]) {
-                this.item(i);
+                this.item(dom);
             } else if (this.box[id]["done"]) {
-                i.setAttribute("class", "_editor_file_done");
+                dom.setAttribute("class", "_editor_file_done");
             } else if (!fid) {
                 fid = id;
             }
         }
-        if (!fid || this._rec["xhr"]) { return; }
+        if (!fid || !this.set["uploadUrl"] || this._rec["xhr"]) { return; }
         this._rec["xhr"] = new XMLHttpRequest();
-        this._rec["xhr"].open("POST", "https://api.escuelajs.co/api/v1/files/upload");
+        this._rec["xhr"].open("POST", this.set["uploadUrl"]);
         this._rec["xhr"].upload.onerror = () => {
+            const doms = this.dom.querySelectorAll("._editor_file_wait[fid='" + fid + "']");
+            if (this.set["uploadEnd"]) { this.set.uploadEnd(this._rec["xhr"], doms); }
+            doms.forEach(dom => dom.setAttribute("class", "_editor_file_fail"));
             this._rec["xhr"].abort();
             delete this._rec["xhr"];
-            this.dom.querySelectorAll("._editor_file_wait[fid='" + fid + "']").forEach(i => i.setAttribute("class", "_editor_file_fail"));
             this.upld();
         };
         this._rec["xhr"].upload.onprogress = e => {
             if (!e.lengthComputable) { return; }
-            const fl = this.dom.querySelectorAll("._editor_file_wait[fid='" + fid + "']");
-            if (!fl.length && !this._rec["file_" + fid + "_abort"]) {
+            const doms = this.dom.querySelectorAll("._editor_file_wait[fid='" + fid + "']");
+            if (!doms.length && !this._rec["file_" + fid + "_abort"]) {
                 this._rec["file_" + fid + "_abort"] = setTimeout(() => {
                     this._rec["xhr"].abort();
                     delete this._rec["xhr"];
@@ -240,15 +242,17 @@ class Editor {
                 }, 3000);
                 return;
             }
-            if (fl.length && this._rec["file_" + fid + "_abort"]) {
+            if (doms.length && this._rec["file_" + fid + "_abort"]) {
                 clearTimeout(this._rec["file_" + fid + "_abort"]);
                 delete this._rec["file_" + fid + "_abort"];
             }
-            fl.forEach(i => i.style.backgroundSize = parseInt(100 * e.loaded / e.total) + "%");
+            doms.forEach(dom => dom.style.backgroundSize = parseInt(100 * e.loaded / e.total) + "%");
         };
         this._rec["xhr"].onreadystatechange = () => {
             if (this._rec["xhr"].readyState !== 4) { return; }
-            this.dom.querySelectorAll("._editor_file_wait[fid='" + fid + "']").forEach(i => i.setAttribute("class", "_editor_file_" + ([200, 201].includes(this._rec["xhr"].status) ? "done" : "fail")));
+            const doms = this.dom.querySelectorAll("._editor_file_wait[fid='" + fid + "']");
+            if (this.set["uploadEnd"]) { this.set.uploadEnd(this._rec["xhr"], doms); }
+            doms.forEach(dom => dom.setAttribute("class", "_editor_file_" + ([200, 201].includes(this._rec["xhr"].status) ? "done" : "fail")));
             this.box[fid]["done"] = true;
             delete this._rec["xhr"];
             this.upld();

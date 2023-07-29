@@ -72,7 +72,20 @@
     <a href="javascript:Editor.sweep();">Sweep</a>
     <br />
     <div contenteditable="true"></div>
-    <script src="noEditor.js" onload="Editor.set={};Editor.watch('div[contenteditable=true]');"></script>
+    <script src="noEditor.js"></script>
+    <script>
+        window.addEventListener("load", () => {
+            Editor.set = {
+                "uploadUrl": "https://api.escuelajs.co/api/v1/files/upload",
+                "uploadEnd": (xhr, doms) => {
+                    doms.forEach(dom => dom.onclick = () => {
+                        console.log(xhr);
+                    });
+                }
+            }
+            Editor.watch('div[contenteditable=true]');
+        });
+    </script>
 </body>
 
 </html>
