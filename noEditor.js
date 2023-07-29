@@ -23,7 +23,7 @@ class Editor {
         let rec;
         const add = i instanceof File;
         if (add) {
-            tag = i.name;
+            tag = i.name || "File";
         } else {
             i.setAttribute("class", "_editor_file_fail");
             tag = decodeURIComponent(i.src.match(/^blob:.*?#(.*?)$/)[1]);
@@ -82,7 +82,10 @@ class Editor {
             txt = e.dataTransfer.getData("text/plain");
         } else if (e.dataTransfer?.types.includes("Files")) {
             const l = [];
-            for (const i of e.dataTransfer.items) { if (i.webkitGetAsEntry()?.isFile) { l.push(i.getAsFile()); } }
+            for (const i of e.dataTransfer.items) {
+                if (i.kind !== "file" || i.webkitGetAsEntry()?.isDirectory) { continue; }
+                l.push(i.getAsFile());
+            }
             txt = (await this.ourl(l)).join("\n");
         }
         const doc = new DocumentFragment();
