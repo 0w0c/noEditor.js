@@ -247,10 +247,10 @@ class Editor {
             fl.forEach(i => i.style.backgroundSize = parseInt(100 * e.loaded / e.total) + "%");
         };
         this._rec["xhr"].onreadystatechange = () => {
-            if (this._rec["xhr"].readyState !== 4 || ![200, 201].includes(this._rec["xhr"].status)) { this.upld(); return; }
-            delete this._rec["xhr"];
+            if (this._rec["xhr"].readyState !== 4) { return; }
+            this.dom.querySelectorAll("._editor_file_wait[fid='" + fid + "']").forEach(i => i.setAttribute("class", "_editor_file_" + ([200, 201].includes(this._rec["xhr"].status) ? "done" : "fail")));
             this.box[fid]["done"] = true;
-            this.dom.querySelectorAll("._editor_file_wait[fid='" + fid + "']").forEach(i => i.setAttribute("class", "_editor_file_done"));
+            delete this._rec["xhr"];
             this.upld();
         };
         const pre = new FormData();
