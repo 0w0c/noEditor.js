@@ -201,7 +201,7 @@ class Editor {
             p.setAttribute("type", "file");
             p.setAttribute("multiple", "multiple");
             p.setAttribute("hidden", "hidden");
-            if (this.set["accept"]) { p.setAttribute("accept", this.set["accept"]); }
+            if (this.set.accept) { p.setAttribute("accept", this.set.accept); }
             document.body.appendChild(p);
         }
         p.onchange = async () => await this.ourl([...p.files]).then(ourlList => this.pour({ ourlList }));
@@ -213,53 +213,53 @@ class Editor {
             const id = dom.getAttribute("fid");
             if (!this.box[id]) {
                 this.item(dom);
-            } else if (this.box[id]["done"]) {
+            } else if (this.box[id].done) {
                 dom.setAttribute("class", "_editor_file_done");
             } else if (!fid) {
                 fid = id;
             }
         }
-        if (!fid || !this.set["uploadUrl"] || this._rec["xhr"]) { return; }
-        this._rec["xhr"] = new XMLHttpRequest();
-        this._rec["xhr"].open("POST", this.set["uploadUrl"]);
-        this._rec["xhr"].upload.onerror = () => {
+        if (!fid || !this.set.uploadUrl || this._rec.xhr) { return; }
+        this._rec.xhr = new XMLHttpRequest();
+        this._rec.xhr.open("POST", this.set.uploadUrl);
+        this._rec.xhr.upload.onerror = () => {
             const doms = this.dom.querySelectorAll("._editor_file_wait[fid='" + fid + "']");
-            if (this.set["uploadEnd"]) { this.set.uploadEnd(this._rec["xhr"], doms); }
+            if (this.set.uploadEnd) { this.set.uploadEnd(this._rec.xhr, doms); }
             doms.forEach(dom => dom.setAttribute("class", "_editor_file_fail"));
-            this._rec["xhr"].abort();
-            delete this._rec["xhr"];
+            this._rec.xhr.abort();
+            delete this._rec.xhr;
             this.upld();
         };
-        this._rec["xhr"].upload.onprogress = e => {
+        this._rec.xhr.upload.onprogress = e => {
             if (!e.lengthComputable) { return; }
             const doms = this.dom.querySelectorAll("._editor_file_wait[fid='" + fid + "']");
-            if (!doms.length && !this._rec["file_" + fid + "_abort"]) {
-                this._rec["file_" + fid + "_abort"] = setTimeout(() => {
-                    this._rec["xhr"].abort();
-                    delete this._rec["xhr"];
-                    delete this._rec["file_" + fid + "_abort"];
+            if (!doms.length && !this._rec["fileAbort" + fid]) {
+                this._rec["fileAbort" + fid] = setTimeout(() => {
+                    this._rec.xhr.abort();
+                    delete this._rec.xhr;
+                    delete this._rec["fileAbort" + fid];
                     this.upld();
                 }, 3000);
                 return;
             }
-            if (doms.length && this._rec["file_" + fid + "_abort"]) {
-                clearTimeout(this._rec["file_" + fid + "_abort"]);
-                delete this._rec["file_" + fid + "_abort"];
+            if (doms.length && this._rec["fileAbort" + fid]) {
+                clearTimeout(this._rec["fileAbort" + fid]);
+                delete this._rec["fileAbort" + fid];
             }
             doms.forEach(dom => dom.style.backgroundSize = parseInt(100 * e.loaded / e.total) + "%");
         };
-        this._rec["xhr"].onreadystatechange = () => {
-            if (this._rec["xhr"].readyState !== 4) { return; }
+        this._rec.xhr.onreadystatechange = () => {
+            if (this._rec.xhr.readyState !== 4) { return; }
             const doms = this.dom.querySelectorAll("._editor_file_wait[fid='" + fid + "']");
-            if (this.set["uploadEnd"]) { this.set.uploadEnd(this._rec["xhr"], doms); }
-            doms.forEach(dom => dom.setAttribute("class", "_editor_file_" + ([200, 201].includes(this._rec["xhr"].status) ? "done" : "fail")));
-            this.box[fid]["done"] = true;
-            delete this._rec["xhr"];
+            if (this.set.uploadEnd) { this.set.uploadEnd(this._rec.xhr, doms); }
+            doms.forEach(dom => dom.setAttribute("class", "_editor_file_" + ([200, 201].includes(this._rec.xhr.status) ? "done" : "fail")));
+            this.box[fid].done = true;
+            delete this._rec.xhr;
             this.upld();
         };
         const pre = new FormData();
         pre.append("file", this.box[fid]);
-        this._rec["xhr"].send(pre);
+        this._rec.xhr.send(pre);
     }
     static range(e) {
         const sl = document.getSelection();
@@ -305,7 +305,7 @@ class Editor {
                                     rg.startContainer.previousSibling?.textContent?.endsWith("\n")
                                 ))
                             ))
-                        ) && (this._rec["save"] = true)) ||
+                        ) && (this._rec.save = true)) ||
                         (e.code === "Delete" && (
                             (rg.endContainer === this.dom && (
                                 this.dom.childNodes[rg.endOffset]?.nodeName !== "#text" ||
@@ -318,8 +318,8 @@ class Editor {
                                     rg.endContainer.nextSibling?.textContent.startsWith("\n")
                                 ))
                             ))
-                        ) && (this._rec["save"] = true)) ||
-                        (this._rec["save"] && delete this._rec["save"])
+                        ) && (this._rec.save = true)) ||
+                        (this._rec.save && delete this._rec.save)
                     )
                 )
             )) { this._act = "!"; }
