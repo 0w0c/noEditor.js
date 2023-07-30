@@ -76,12 +76,13 @@
     <script>
         window.addEventListener("load", () => {
             Editor.set = {
+                "upRemote": "https://api.escuelajs.co/api/v1/files/test.fetch",
                 "upUrl": "https://api.escuelajs.co/api/v1/files/upload",
                 "upEnd": (xhr, doms) => {
                     doms.forEach(dom => dom.onclick = () => {
                         console.log(xhr);
                     });
-                }
+                },
             }
             Editor.watch('div[contenteditable=true]');
         });

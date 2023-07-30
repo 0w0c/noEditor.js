@@ -21,9 +21,13 @@ class Editor {
     static async item(i) {
         let tag;
         let rec;
-        const add = i instanceof File;
-        if (add) {
+        const act = (typeof i === "string") ? "remote" : (i instanceof File ? "upload" : "");
+        console.log(act);
+        if (act === "upload") {
             tag = i.name || "File";
+        } else if (act === "remote") {
+            tag = i.substring(i.lastIndexOf("/") + 1);
+            console.log(tag);
         } else {
             i.setAttribute("class", "_editor_file_fail");
             tag = decodeURIComponent(i.src.match(/^blob:.*?#(.*?)$/)[1]);
@@ -37,7 +41,7 @@ class Editor {
         ctx.font = this.css.font;
         ctx.fillStyle = "black";
         ctx.textBaseline = "middle";
-        if (add && ctx.measureText(tag).width > cvs.width) {
+        if (act && ctx.measureText(tag).width > cvs.width) {
             const max = cvs.width - ctx.measureText("...").width;
             let bsl = 0;
             let bsr = tag.length;
@@ -51,7 +55,7 @@ class Editor {
         ctx.fillText(tag, 0, cvs.height / 2);
         const o = URL.createObjectURL(await new Promise(r => cvs.toBlob(r)));
         const u = o + "#" + tag;
-        if (add) { if (o) { this.box[o.substring(o.lastIndexOf("/") + 1)] = i; } return u; }
+        if (act) { if (o) { this.box[o.substring(o.lastIndexOf("/") + 1)] = i; } console.log(this.box); return u; }
         else { i.src = u; this.bin[rec] = u; }
     }
     static async pour(e) {
@@ -73,10 +77,16 @@ class Editor {
                 .replace(/(\vblob:[^#]+?\v)(?=\vblob:)/gi, "$1\n")
                 .replace(/^[^\S\v]+/, tmp.match(/^[^\S\n]*(\n*)/)[1])
                 .replace(/[^\S\v]+$/, tmp.match(/(\n*)[^\S\n]*$/)[1])
-            for (const m of new Set(txt.match(/\v(?:blob|data):[^#]+?\v/gi) || [])) {
+            for (const m of new Set(txt.match(/\v(?:blob:|data:|https?:\/\/|\/\/)[^#]+?\v/gi) || [])) {
                 const u = m.slice(1, m.length - 1);
-                txt = txt.replaceAll(u, await fetch(u).then(r => r.blob()).then(b => new File([b], "")).then(f => this.item(f)));
-                if (u.startsWith("blob:")) { URL.revokeObjectURL(u); }
+                if (/^blob:|data:/.test(u)) {
+                    txt = txt.replaceAll(u, await fetch(u).then(r => r.blob()).then(b => new File([b], "")).then(f => this.item(f)));
+                    if (u.startsWith("blob:")) { URL.revokeObjectURL(u); }
+                } else if (this.set.upRemote) {
+                    txt = txt.replaceAll(u, await this.item(u));
+                } else if (this.set.upRemote === false) {
+                    txt = txt.replaceAll(m, "");
+                }
             }
         } else if (e.dataTransfer?.types.includes("text/plain")) {
             txt = e.dataTransfer.getData("text/plain");
