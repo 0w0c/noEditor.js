@@ -77,8 +77,17 @@
         window.addEventListener("load", () => {
             Editor.set = {
                 "upRemote": "https://api.escuelajs.co/api/v1/files/test.fetch",
-                "upUrl": "https://api.escuelajs.co/api/v1/files/upload",
-                "upEnd": (xhr, doms) => {
+                "upFile": "https://api.escuelajs.co/api/v1/files/upload",
+                "upPre": (act, obj) => {
+                    const pre = new FormData();
+                    if (act === "file") {
+                        pre.append("file", obj);
+                    } else {
+                        pre.append("url", obj.url);
+                    }
+                    return pre;
+                },
+                "upEnd": (act, xhr, doms) => {
                     doms.forEach(dom => dom.onclick = () => {
                         console.log(xhr);
                     });

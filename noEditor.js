@@ -21,13 +21,11 @@ class Editor {
     static async item(i) {
         let tag;
         let rec;
-        const act = (typeof i === "string") ? "remote" : (i instanceof File ? "upload" : "");
-        console.log(act);
-        if (act === "upload") {
+        const act = (typeof i === "string") ? "remote" : (i instanceof File ? "file" : "");
+        if (act === "file") {
             tag = i.name || "File";
         } else if (act === "remote") {
             tag = i.substring(i.lastIndexOf("/") + 1);
-            console.log(tag);
         } else {
             i.setAttribute("class", "_editor_file_fail");
             tag = decodeURIComponent(i.src.match(/^blob:.*?#(.*?)$/)[1]);
@@ -55,7 +53,7 @@ class Editor {
         ctx.fillText(tag, 0, cvs.height / 2);
         const o = URL.createObjectURL(await new Promise(r => cvs.toBlob(r)));
         const u = o + "#" + tag;
-        if (act) { if (o) { this.box[o.substring(o.lastIndexOf("/") + 1)] = i; } console.log(this.box); return u; }
+        if (act) { if (o) { this.box[o.substring(o.lastIndexOf("/") + 1)] = (act === "file") ? i : { "url": i }; } return u; }
         else { i.src = u; this.bin[rec] = u; }
     }
     static async pour(e) {
@@ -229,14 +227,14 @@ class Editor {
                 fid = id;
             }
         }
-        if (!fid || !this.set.upUrl || this._rec.xhr) { return; }
+        const act = fid ? (this.box[fid] instanceof File ? "file" : "remote") : "";
+        if (!act || this._rec.xhr || (act === "file" && !this.set.upFile) || (act === "remote" && !this.set.upRemote)) { return; }
         this._rec.xhr = new XMLHttpRequest();
-        this._rec.xhr.open("POST", this.set.upUrl);
-        this._rec.xhr.upload.onerror = () => {
+        this._rec.xhr.open("POST", (act === "file") ? this.set.upFile : this.set.upRemote);
+        this._rec.xhr.onerror = () => {
             const doms = this.dom.querySelectorAll("._editor_file_wait[fid='" + fid + "']");
-            if (this.set.upEnd) { this.set.upEnd(this._rec.xhr, doms); }
+            if (this.set.upEnd) { this.set.upEnd(act, this._rec.xhr, doms); }
             doms.forEach(dom => dom.setAttribute("class", "_editor_file_fail"));
-            this._rec.xhr.abort();
             delete this._rec.xhr;
             this.upld();
         };
@@ -261,15 +259,13 @@ class Editor {
         this._rec.xhr.onreadystatechange = () => {
             if (this._rec.xhr.readyState !== 4) { return; }
             const doms = this.dom.querySelectorAll("._editor_file_wait[fid='" + fid + "']");
-            if (this.set.upEnd) { this.set.upEnd(this._rec.xhr, doms); }
+            if (this.set.upEnd) { this.set.upEnd(act, this._rec.xhr, doms); }
             doms.forEach(dom => dom.setAttribute("class", "_editor_file_" + ([200, 201].includes(this._rec.xhr.status) ? "done" : "fail")));
             this.box[fid].done = true;
             delete this._rec.xhr;
             this.upld();
         };
-        const pre = new FormData();
-        pre.append("file", this.box[fid]);
-        this._rec.xhr.send(pre);
+        this._rec.xhr.send(this.set.upPre ? this.set.upPre(act, this.box[fid]) : this.box[fid]);
     }
     static range(e) {
         const sl = document.getSelection();
