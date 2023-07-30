@@ -78,7 +78,7 @@
             Editor.set = {
                 "upRemote": "https://api.escuelajs.co/api/v1/files/test.fetch",
                 "upFile": "https://api.escuelajs.co/api/v1/files/upload",
-                "upPre": (act, obj) => {
+                "upPre": (act, xhr, obj) => {
                     const pre = new FormData();
                     if (act === "file") {
                         pre.append("file", obj);

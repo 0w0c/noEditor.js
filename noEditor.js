@@ -265,7 +265,7 @@ class Editor {
             delete this._rec.xhr;
             this.upld();
         };
-        this._rec.xhr.send(this.set.upPre ? this.set.upPre(act, this.box[fid]) : this.box[fid]);
+        this._rec.xhr.send(this.set.upPre ? this.set.upPre(act, this._rec.xhr, this.box[fid]) : this.box[fid]);
     }
     static range(e) {
         const sl = document.getSelection();
