@@ -76,8 +76,8 @@
     <script>
         window.addEventListener("load", () => {
             Editor.set = {
-                "uploadUrl": "https://api.escuelajs.co/api/v1/files/upload",
-                "uploadEnd": (xhr, doms) => {
+                "upUrl": "https://api.escuelajs.co/api/v1/files/upload",
+                "upEnd": (xhr, doms) => {
                     doms.forEach(dom => dom.onclick = () => {
                         console.log(xhr);
                     });

@@ -201,7 +201,7 @@ class Editor {
             p.setAttribute("type", "file");
             p.setAttribute("multiple", "multiple");
             p.setAttribute("hidden", "hidden");
-            if (this.set.accept) { p.setAttribute("accept", this.set.accept); }
+            if (this.set.upAccept) { p.setAttribute("accept", this.set.upAccept); }
             document.body.appendChild(p);
         }
         p.onchange = async () => await this.ourl([...p.files]).then(ourlList => this.pour({ ourlList }));
@@ -219,12 +219,12 @@ class Editor {
                 fid = id;
             }
         }
-        if (!fid || !this.set.uploadUrl || this._rec.xhr) { return; }
+        if (!fid || !this.set.upUrl || this._rec.xhr) { return; }
         this._rec.xhr = new XMLHttpRequest();
-        this._rec.xhr.open("POST", this.set.uploadUrl);
+        this._rec.xhr.open("POST", this.set.upUrl);
         this._rec.xhr.upload.onerror = () => {
             const doms = this.dom.querySelectorAll("._editor_file_wait[fid='" + fid + "']");
-            if (this.set.uploadEnd) { this.set.uploadEnd(this._rec.xhr, doms); }
+            if (this.set.upEnd) { this.set.upEnd(this._rec.xhr, doms); }
             doms.forEach(dom => dom.setAttribute("class", "_editor_file_fail"));
             this._rec.xhr.abort();
             delete this._rec.xhr;
@@ -233,25 +233,25 @@ class Editor {
         this._rec.xhr.upload.onprogress = e => {
             if (!e.lengthComputable) { return; }
             const doms = this.dom.querySelectorAll("._editor_file_wait[fid='" + fid + "']");
-            if (!doms.length && !this._rec["fileAbort" + fid]) {
-                this._rec["fileAbort" + fid] = setTimeout(() => {
+            if (!doms.length && !this._rec["xhrAbort" + fid]) {
+                this._rec["xhrAbort" + fid] = setTimeout(() => {
                     this._rec.xhr.abort();
                     delete this._rec.xhr;
-                    delete this._rec["fileAbort" + fid];
+                    delete this._rec["xhrAbort" + fid];
                     this.upld();
                 }, 3000);
                 return;
             }
-            if (doms.length && this._rec["fileAbort" + fid]) {
-                clearTimeout(this._rec["fileAbort" + fid]);
-                delete this._rec["fileAbort" + fid];
+            if (doms.length && this._rec["xhrAbort" + fid]) {
+                clearTimeout(this._rec["xhrAbort" + fid]);
+                delete this._rec["xhrAbort" + fid];
             }
             doms.forEach(dom => dom.style.backgroundSize = parseInt(100 * e.loaded / e.total) + "%");
         };
         this._rec.xhr.onreadystatechange = () => {
             if (this._rec.xhr.readyState !== 4) { return; }
             const doms = this.dom.querySelectorAll("._editor_file_wait[fid='" + fid + "']");
-            if (this.set.uploadEnd) { this.set.uploadEnd(this._rec.xhr, doms); }
+            if (this.set.upEnd) { this.set.upEnd(this._rec.xhr, doms); }
             doms.forEach(dom => dom.setAttribute("class", "_editor_file_" + ([200, 201].includes(this._rec.xhr.status) ? "done" : "fail")));
             this.box[fid].done = true;
             delete this._rec.xhr;
