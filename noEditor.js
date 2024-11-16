@@ -368,6 +368,11 @@ class Editor {
             }
         }, false);
         this.dom.addEventListener("input", async e => {
+            if (e.inputType.startsWith("format")) {
+                e.preventDefault();
+                this.dom.innerHTML = this.dom.innerHTML.replace(/<(?!img\b)([^>]+)>/gi, "");
+                return;
+            }
             this.done(e);
         }, false);
         this.dom.addEventListener('compositionend', async e => {
